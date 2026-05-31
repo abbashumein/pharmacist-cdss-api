@@ -1,44 +1,31 @@
-# Pharmacist CDSS: AI-Powered Clinical Decision Support System API
+Pharmacist CDSS: AI-Powered Clinical Decision Support System API
 
-Pharmacist CDSS is a modular, production-ready microservice architecture designed to assist clinicians and pharmacists in high-stress triage environments. The system acts as an intelligent dual-engine gateway: it uses a highly optimized PyTorch NLP model to parse user distress text across dozens of emotional variables, while concurrently running an advanced Retrieval-Augmented Generation (RAG) pipeline to cross-reference pharmaceutical knowledge bases, ensuring safe decision-making and preventing adverse drug events.
+Pharmacist CDSS is an asynchronous, high-performance API microservice engineered for clinical triage and decision support. The system implements a modular, containerized multi-service architecture that seamlessly bridges high-speed local deep learning inference with Retrieval-Augmented Generation (RAG) and large language model orchestration.
 
-🚀 Features
+🚀 Part 1: Current Codebase Implementation
 
-- **Hybrid AI Architecture**: Dual-engine intelligence combining fine-grained sentiment classifications with context-aware semantic retrieval.
-- **Deep NLP Sentiment Engine**: Powered by a fine-tuned DistilBERT transformer (via Hugging Face & PyTorch) to evaluate 27 emotional classes and output explicit clinical severity metrics.
-- **Context-Aware Knowledge Retrieval**: Uses LangChain and a localized vector storage setup to ingest clinical medical guidelines, injecting authoritative medical context into the processing pipeline via Retrieval-Augmented Generation (RAG).
-- **Orchestrated LLM Synthesis**: Seamlessly integrates Gemini API orchestration to synthesize clinical documentation, cross-reference data points, and generate clear decision pathways.
-- **High-Performance Microservice Layer**: Engineered completely on FastAPI using asynchronous design patterns for low-latency request processing.
-- **Containerized for the Cloud**: Fully configured with an enterprise-ready Dockerfile for seamless, environment-agnostic deployment onto production clusters (AWS ECS Fargate, Kubernetes).
-- **Automated CI/CD**: Built-in GitHub Actions workflow to automatically test, validate, and preview container builds on every code change.
+The files currently residing in this repository constitute the complete, functional core engine of the CDSS microservice. It is fully containerized, tested, and ready to run locally or inside a single cloud container.
 
-📁 Project Structure
+Core Components Built:
 
-├── .github/
-│   └── workflows/
-│       └── deploy.yml        # CI/CD pipeline automation for cloud deployment
-├── app/
-│   ├── main.py               # FastAPI application entry point and async routing
-│   └── services/
-│       ├── ml_service.py     # PyTorch DistilBERT sentiment & severity execution
-│       ├── rag_service.py    # LangChain vector indexing and document retrieval
-│       └── gemini_service.py # Gemini LLM orchestration and final response synthesis
-├── .gitignore                # Production-safe tracking exclusions (ignores data/env)
-├── Dockerfile                # Multi-stage container build configuration
-└── requirements.txt          # Python dependency pinning matrix
+Asynchronous FastAPI Gateway (app/main.py): Manages sub-second request-response lifecycles, fielding incoming clinician payloads and managing concurrent service threads.
 
-🔁 Core Execution Flow
+Local Deep Learning Sentiment Node (app/services/ml_service.py): Runs a localized, fine-tuned PyTorch DistilBERT model mapping inputs across 27 emotional parameters to evaluate clinical severity and patient distress.
 
-1. Client or clinical interface fires a payload containing patient history or raw text to the FastAPI gateway.
-2. The endpoint triggers parallel service actions:
-   - `ml_service.py` feeds text to DistilBERT to classify clinical severity.
-   - `rag_service.py` queries localized vector indexes to extract explicit pharmaceutical constraints.
-3. `gemini_service.py` acts as the master orchestrator, synthesizing the raw context arrays and severity values into an authoritative clinical insight model.
-4. FastAPI serializes the clean payload and streams it back to the interface with ultra-low latency.
+Deterministic Semantic Search Engine (app/services/rag_service.py): Implements LangChain-Chroma vector storage locally to execute high-speed similarity queries over medical reference logs, pulling exact pharmaceutical safety boundaries.
 
-🧠 Architecture Overview
+Context-Aware Reasoning Agent (app/services/gemini_service.py): Orchestrates the Gemini API to consume local PyTorch metrics alongside retrieved RAG guidelines, synthesizing a secure, structured guidance note for the clinician.
 
-│                                                           
+Infrastructure & Containerization (Dockerfile): Wraps the entire Python runtime, dependencies, and local parameters into a reproducible, production-ready virtual image.
+
+CI/CD Build Automation (.github/workflows/deploy.yml): Automates testing of container compilations on every code change to prevent build regressions.
+
+🏗️ Part 2: Target Enterprise Production Blueprint
+
+To scale this service for real-world hospital environments, the codebase has been architected to deploy directly into the following enterprise cloud and data orchestrator infrastructure.
+
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                              AWS PRODUCTION ENVIRONMENT                                │
 │                                                                                        │
 │  ┌───────────────────────┐       ┌─────────────────────────┐       ┌─────────────────┐ │
 │  │    CLIENT REQUEST     │ ───>  │     AWS API GATEWAY     │ ───>  │     AWS ECS     │ │
@@ -77,19 +64,52 @@ Pharmacist CDSS is a modular, production-ready microservice architecture designe
 └────────────────────────────────────────────────────────────────────────────────────────┘
 
 
+Architectural Design Logic:
 
-📦 Technologies Used
+1. Cloud-Native Scalability (AWS ECS & Fargate)
 
-FastAPI: Asynchronous Python microservice framework.
+The core FastAPI Docker container is designed to run on AWS ECS Fargate. As traffic peaks, AWS automatically provisions resources up to 1 vCPU and 2 GB RAM per instance, ensuring consistent api throughput without requiring manual server administration.
 
-PyTorch & Hugging Face: Transformer runtime infrastructure executing the localized DistilBERT model.
+2. Scheduled Data Ingestion (Apache Airflow)
 
-LangChain: AI orchestration primitives for systemic Retrieval-Augmented Generation.
+In production, clinical reference manuals and drug warning databases are updated constantly. To prevent downtime or out-of-date model contexts:
 
-Docker: Containerization and isolation platform.
+Apache Airflow acts as our central orchestration framework.
 
-GitHub Actions: Continuous Integration and Deployment automation matrix.
+Airflow runs scheduled pipelines that extract fresh drug interaction data, run them through localized embedding models, and update the Chroma vector indexes.
 
-```bash
+These updated indexes are periodically pushed to production storage, keeping the active RAG retrieval engine accurate without interrupting the core API runtime.
+
+🛠️ Installation & Local Execution
+
+To run, inspect, and verify the core microservice architecture on your local system:
+
+1. Requirements & Dependencies
+
+Install the required packages:
+
+pip install -r requirements.txt
+
+
+2. Set Up Environment Variables
+
+Create a .env file in the root directory and add your secret API key:
+
+GEMINI_API_KEY="your_actual_gemini_api_key_here"
+
+
+3. Start the FastAPI Microservice
+
+Run the local Uvicorn development server:
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+
+Once running, access the interactive Swagger API documentation at: http://localhost:8000/docs
+
+4. Build the Local Docker Container
+
+To test container packaging:
+
 docker build -t pharmacist-cdss-api .
-docker run -d -p 8000:8000 --env GEMINI_API_KEY="your_api_key_here" pharmacist-cdss-api
+docker run -d -p 8000:8000 --env GEMINI_API_KEY="your_api_key" pharmacist-cdss-api
