@@ -277,4 +277,4 @@ This project is designed to demonstrate practical AI Engineering concepts:
 * Containerization
 * CI/CD
 * MLOps & LLMOps Foundations
-* Production-Oriented AI Development
+* Production-Oriented AI Development.
