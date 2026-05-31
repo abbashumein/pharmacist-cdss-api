@@ -38,41 +38,55 @@ Pharmacist CDSS is a modular, production-ready microservice architecture designe
 
 🧠 Architecture Overview
 
-                   ┌────────────────────────────────────────┐
-                   │       Client UI / Clinical App         │
-                   │  Raw Text Payload & Patient History    │
-                   └───────────────────┬────────────────────┘
-                                       │
-                               Async HTTP Request
-                                       ▼
-                   ┌────────────────────────────────────────┐
-                   │          FastAPI (app/main.py)         │
-                   │        High-Speed Gateway Layer        │
-                   └───────────────────┬────────────────────┘
-                                       │
-                        ┌──────────────┴──────────────┐
-                        ▼                             ▼
-           ┌────────────────────────┐    ┌────────────────────────┐
-           │ ml_service.py          │    │ rag_service.py         │
-           │ • PyTorch DistilBERT   │    │ • LangChain Vector DB  │
-           │ • 27 Emotion Matrix    │    │ • Medical Reference    │
-           │ • Severity Scoring     │    │   Retrieval (RAG)      │
-           └────────────┬───────────┘    └────────────┬───────────┘
-                        │                             │
-                        └──────────────┬──────────────┘
-                                       ▼
-                   ┌────────────────────────────────────────┐
-                   │ gemini_service.py                      │
-                   │ • Context Synthesis Engine             │
-                   │ • Constraint Enforcement               │
-                   └───────────────────┬────────────────────┘
-                                       │
-                              Structured JSON Response
-                                       ▼
-                   ┌────────────────────────────────────────┐
-                   │         Clinical Dashboard             │
-                   │    Severity Metrics & CDSS Insight     │
-                   └────────────────────────────────────────┘
+       [ CI/CD PIPELINE ]
+                                     GitHub Actions
+                                            │
+                                    (Automated Build)
+                                            ▼
+                                   [ DOCKER REGISTRY ]
+                                   AWS ECR / Hub Image
+                                            │
+                                        (Deploy)
+                                            ▼
+ ┌────────────────────────────────────────────────────────────────────────────────────────┐
+ │                              AWS PRODUCTION ENVIRONMENT                                │
+ │                                                                                        │
+ │   ┌───────────────────────┐      ┌─────────────────────────┐     ┌─────────────────┐   │
+ │   │    CLIENT REQUEST     │ ───> │     AWS API GATEWAY     │ ──> │   AWS ECS       │   │
+ │   │  (Clinical Dashboard) │      │  (Security & Throttling)│     │   (Fargate App) │   │
+ │   └───────────────────────┘      └─────────────────────────┘     └────────┬────────┘   │
+ │                                                                           │            │
+ │                                                   ┌───────────────────────┴────────┐   │
+ │                                                   ▼                                ▼   │
+ │                                       ┌───────────────────────┐        ┌──────────────────┐│
+ │                                       │     ML_SERVICE.PY     │        │  RAG_SERVICE.PY  ││
+ │                                       │ PyTorch (DistilBERT)  │        │ LangChain Vector ││
+ │                                       └───────────┬───────────┘        └────────┬─────────┘│
+ │                                                   │                             │      │
+ │                                                   └───────────────┬─────────────┘      │
+ │                                                                   ▼                    │
+ │                                                       ┌───────────────────────┐        │
+ │                                                       │   GEMINI_SERVICE.PY   │        │
+ │                                                       │  (LLM Orchestration)  │        │
+ │                                                       └───────────┬───────────┘        │
+ │                                                                   │                    │
+ │                                                                   ▼                    │
+ │                                                       ┌───────────────────────┐        │
+ │                                                       │    MLOPS MONITORING   │        │
+ │                                                       │ (Prometheus / Logging)│        │
+ │                                                       └───────────────────────┘        │
+ └────────────────────────────────────────────────────────────────────────────────────────┘
+                                                             ▲
+                                                    (Scheduled Updates)
+                                                             │
+ ┌───────────────────────────────────────────────────────────┴────────────────────────────┐
+ │                               DATA ORCHESTRATION PIPELINES                             │
+ │                                                                                        │
+ │   ┌───────────────────────┐      ┌─────────────────────────┐     ┌─────────────────┐   │
+ │   │   RAW CLINICAL DATA   │ ───> │     APACHE AIRFLOW      │ ──> │ EMBEDDING LOOP  │   │
+ │   │ (Medical Docs / Logs) │      │    (Data Ingestion)     │     │ (Vector Update) │   │
+ │   └───────────────────────┘      └─────────────────────────┘     └─────────────────┘   │
+ └────────────────────────────────────────────────────────────────────────────────────────┘
 
 
 
