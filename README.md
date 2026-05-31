@@ -38,7 +38,6 @@ Pharmacist CDSS is a modular, production-ready microservice architecture designe
 
 🧠 Architecture Overview
 
-     ┌────────────────────────────────────────────────────────────────────────────────────────┐
 │                                                           
 │                                                                                        │
 │  ┌───────────────────────┐       ┌─────────────────────────┐       ┌─────────────────┐ │
