@@ -24,44 +24,76 @@ CI/CD Build Automation (.github/workflows/deploy.yml): Automates testing of cont
 
 To scale this service for real-world hospital environments, the codebase has been architected to deploy directly into the following enterprise cloud and data orchestrator infrastructure.
 
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                              AWS PRODUCTION ENVIRONMENT                                │
-│                                                                                        │
-│  ┌───────────────────────┐       ┌─────────────────────────┐       ┌─────────────────┐ │
-│  │    CLIENT REQUEST     │ ───>  │     AWS API GATEWAY     │ ───>  │     AWS ECS     │ │
-│  │ (Clinical Dashboard)  │       │ (Security & Throttling) │       │  (Fargate App)  │ │
-│  └───────────────────────┘       └─────────────────────────┘       └────────┬────────┘ │
-│                                                                             │          │
-│                                            ┌────────────────────────────────┴────────┐ │
-│                                            ▼                                         ▼ │
-│                                  ┌───────────────────┐                     ┌───────────────────┐ │
-│                                  │   ML_SERVICE.PY   │                     │   RAG_SERVICE.PY  │ │
-│                                  │PyTorch(DistilBERT)│                     │ LangChain Vector  │ │
-│                                  └─────────┬─────────┘                     └─────────┬─────────┘ │
-│                                            │                                         │          │
-│                                            └────────────────────┬────────────────────┘          │
-│                                                                 ▼                               │
-│                                                      ┌───────────────────┐                     │
-│                                                      │ GEMINI_SERVICE.PY │                     │
-│                                                      │(LLMOrchestration) │                     │
-│                                                      └─────────┬─────────┘                     │
-│                                                                │                               │
-│                                                                ▼                               │
-│                                                      ┌───────────────────┐                     │
-│                                                      │ MLOPS MONITORING  │                     │
-│                                                      │(Prometheus/Loggg) │                     │
-│                                                      └───────────────────┘                     │
-└────────────────────────────────────────────────────────────────────────────────────────┘
-                                           ▲ (Scheduled Updates)
-                                           │
-┌──────────────────────────────────────────┴─────────────────────────────────────────────┐
-│                             DATA ORCHESTRATION PIPELINES                               │
-│                                                                                        │
-│  ┌───────────────────────┐       ┌─────────────────────────┐       ┌─────────────────┐ │
-│  │   RAW CLINICAL DATA   │ ───>  │     APACHE AIRFLOW      │ ───>  │ EMBEDDING LOOP  │ │
-│  │ (Medical Docs / Logs) │       │    (Data Ingestion)     │       │ (Vector Update) │ │
-│  └───────────────────────┘       └─────────────────────────┘       └─────────────────┘ │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────┐
+│     User (UI)       │
+│  Gradio Frontend    │
+└──────────┬──────────┘
+           │
+           │ User Message
+           ▼
+┌─────────────────────┐
+│      app.py         │
+│ Request Handler     │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│   Router Service    │
+│ Decision Logic      │
+└──────┬──────┬───────┘
+       │      │
+       │      │
+       ▼      ▼
+┌──────────┐ ┌──────────────┐
+│ ML Model │ │ RAG Service  │
+│DistilBERT│ │ Vector Search│
+└─────┬────┘ └──────┬───────┘
+      │             │
+      └──────┬──────┘
+             │
+             ▼
+┌─────────────────────┐
+│   Gemini Service    │
+│ LLM Orchestration   │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Safety & Validation │
+│ Response Filtering  │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Final AI Response   │
+│ Returned to User    │
+└─────────────────────┘
+
+
+      Knowledge Update Pipeline
+
+┌─────────────────────┐
+│ Mental Health Docs  │
+│ PDFs / Articles     │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Document Processing │
+│ Chunking & Cleaning │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Embedding Generator │
+│ SentenceTransformers│
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│ Vector Database     │
+│ Chroma / FAISS      │
+└─────────────────────┘
 
 
 Architectural Design Logic:
