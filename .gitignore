@@ -1,7 +1,8 @@
-__pycache__/
-*.pyc
-.env
-chroma_db/
-weights/
+# Your local .gitignore settings
 chroma_storage/
-venv/
+__pycache__/
+.env
+
+# The remote GitHub .gitignore settings
+.venv/
+*.pyc
