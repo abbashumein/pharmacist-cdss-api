@@ -278,3 +278,13 @@ This project is designed to demonstrate practical AI Engineering concepts:
 * CI/CD
 * MLOps & LLMOps Foundations
 * Production-Oriented AI Development.
+
+
+
+
+
+### 🔬 Research & Development
+
+The exploratory data analysis, severity classification modeling, and initial workflow prototyping for this clinical support tool were developed in Google Colab. You can view and run the experimental notebook directly via the link below:
+
+* [Launch Active Colab Notebook](https://colab.research.google.com/drive/1KwWJRlIynOMbfM8f3zcUym4lCNytyoj8#scrollTo=MUOtHKZA2L7n)
