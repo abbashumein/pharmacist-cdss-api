@@ -1,33 +1,41 @@
 import torch
 import torch.nn as nn
 from transformers import AutoTokenizer, DistilBertModel
+from app.core.config import settings, EMOTION_LABELS
+import logging
+
+logger = logging.getLogger(__name__)
 
 class DistilBertMultiLabel(nn.Module):
-    def __init__(self, num_classes=28):
+    def __init__(self, num_labels: int = 28):
         super().__init__()
-        self.bert = DistilBertModel.from_pretrained("distilbert-base-uncased")
-        self.dropout = nn.Dropout(0.3)
-        self.classifier = nn.Linear(self.bert.config.hidden_size, num_classes)
-        
+        self.distilbert = DistilBertModel.from_pretrained("distilbert-base-uncased")
+        self.dropout = nn.Dropout(0.2)
+        self.classifier = nn.Linear(self.distilbert.config.hidden_size, num_labels)
+
     def forward(self, input_ids, attention_mask):
-        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        pooled_output = outputs.last_hidden_state[:, 0, :]
-        pooled_output = self.dropout(pooled_output)
-        return self.classifier(pooled_output)
+        outputs = self.distilbert(input_ids=input_ids, attention_mask=attention_mask)
+        cls_output = outputs.last_hidden_state[:, 0, :]
+        return self.classifier(self.dropout(cls_output))
 
 class MLService:
-    def __init__(self, weights_path, labels):
+    def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
-        self.labels = labels
-        self.model = DistilBertMultiLabel(num_classes=len(labels)).to(self.device)
-        self.model.load_state_dict(torch.load(weights_path, map_location=self.device))
+        self.model = DistilBertMultiLabel(num_labels=len(EMOTION_LABELS)).to(self.device)
+        self.model.load_state_dict(
+            torch.load(settings.MODEL_PATH, map_location=self.device)
+        )
         self.model.eval()
-        
-    def predict(self, text, threshold=0.3):
-        inputs = self.tokenizer(text, max_length=128, padding="max_length", truncation=True, return_tensors="pt").to(self.device)
+        logger.info(f"MLService ready on {self.device}")
+
+    def predict(self, text: str, threshold: float = 0.3) -> list[str]:
+        inputs = self.tokenizer(
+            text, max_length=128, padding="max_length",
+            truncation=True, return_tensors="pt"
+        ).to(self.device)
         with torch.no_grad():
-            outputs = self.model(inputs["input_ids"], inputs["attention_mask"])
-            probabilities = torch.sigmoid(outputs).cpu().tolist()[0]
-        detected = [self.labels[i] for i, prob in enumerate(probabilities) if prob > threshold]
+            logits = self.model(inputs["input_ids"], inputs["attention_mask"])
+            probs = torch.sigmoid(logits).cpu().tolist()[0]
+        detected = [EMOTION_LABELS[i] for i, p in enumerate(probs) if p > threshold]
         return detected if detected else ["neutral"]

@@ -1,0 +1,10 @@
+PHARMACY STANDARD OPERATING PROCEDURES (SOP) - REFILLS & INTERACTIONS
+
+1. MANDATORY CLINICAL REVIEW:
+All prescriptions involving central nervous system (CNS) depressants or known QT-prolonging agents must undergo a secondary clinical safety review before dispensing. 
+
+2. PATIENT TRIAGE MANDATE:
+If a patient or caregiver reports acute high-severity symptoms (such as extreme confusion, physical inability to eat, or signs of self-harm), staff must halt standard data collection and immediately direct the individual to the nearest Emergency Department or coordinate with the on-call medical crisis team.
+
+3. DISPENSING ALTERNATIVES:
+When a critical drug interaction is flagged by the system, the pharmacist on duty should not reject the order outright. Instead, they must draft a clinical intervention note proposing alternative, safer therapeutic agents and contact the prescribing General Practitioner (GP) for confirmation.
