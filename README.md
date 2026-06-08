@@ -1,8 +1,8 @@
 # Pharmacist CDSS: AI-Powered Clinical Decision Support System
 
-Pharmacist CDSS is a production-oriented Clinical Decision Support System (CDSS) designed to assist healthcare professionals by combining machine learning, Retrieval-Augmented Generation (RAG), and Large Language Models (LLMs) into a unified AI workflow.
+An intelligent Stateful RAG AI Agent designed to assist pharmacists with real-time clinical reasoning, drug safety checks, and decision support. Pharmacist CDSS is a production-oriented Clinical Decision Support System (CDSS) designed to assist healthcare professionals by combining machine learning, Retrieval-Augmented Generation (RAG), and Large Language Models (LLMs) into a unified AI workflow.
 
-The system is engineered using modern AI engineering principles including modular service design, API-first development, containerization, retrieval pipelines, and scalable deployment patterns.
+It functions as a practical AI Agent that combines machine learning, Retrieval-Augmented Generation (RAG), and Gemini LLM to provide contextual, safe, and structured guidance to healthcare professionals. The system is engineered using modern AI engineering principles including modular service design, API-first development, containerization, retrieval pipelines, and scalable deployment patterns.
 
 Rather than functioning as a standalone machine learning model, the platform demonstrates how multiple AI components can collaborate to support clinical reasoning and pharmaceutical decision-making.
 
