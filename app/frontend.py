@@ -173,11 +173,21 @@ with col_telemetry:
     st.markdown("---")
 
     m1, m2 = st.columns(2)
+
     with m1:
-        st.metric("Confidence", tel.get("confidence_score", "N/A"))
+        st.caption("Confidence")
+        st.markdown(
+            f"<span style='font-size:16px;font-weight:600'>{tel.get('confidence_score', 'N/A')}</span>",
+            unsafe_allow_html=True
+        )
+
     with m2:
         emo = ", ".join(tel.get("emotions", ["neutral"]))
-        st.metric("Emotion State", emo.title())
+        st.caption("Emotion State")
+        st.markdown(
+            f"<span style='font-size:16px;font-weight:600'>{emo.title()}</span>",
+            unsafe_allow_html=True
+        )
 
     # Show parsed clinical summary in telemetry panel
     summary = tel.get("clinical_summary", {})
