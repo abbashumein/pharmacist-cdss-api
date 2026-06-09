@@ -1,8 +1,33 @@
-# Your local .gitignore settings
-chroma_storage/
-__pycache__/
+# Virtual Environments (Strict Dot Match)
+.venv/
+venv/
+ENV/
+env/
+
+# Secret API Keys and Credentials
 .env
 
-# The remote GitHub .gitignore settings
-.venv/
+# IDE & Editor files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Heavy Data & Model Weights
+weights/
+chroma_storage/
+chroma_db/
+*.zip
+*.tar.gz
+*.json
+!app/static/*.json   # Don't ignore static configuration JSONs if any exist
+
+# Python Cache
+__pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/

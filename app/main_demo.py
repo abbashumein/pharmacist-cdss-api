@@ -1,20 +1,61 @@
 import os
-from dotenv import load_dotenv
-import time
 import re
-import chromadb
-from fastapi import FastAPI
+import time
+from typing import List, Dict, Any
 from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException, status, Security
+from fastapi.security.api_key import APIKeyHeader
+
+# LangGraph and AI SDK Engine Core Imports
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
 from google import genai
 from sentence_transformers import SentenceTransformer
+import chromadb
 
-app = FastAPI(title="CDSS API")
+# Component Imports from your architectural design
+from app.utils.logger import sys_logger
 
-load_dotenv()
-API_KEY = os.getenv("GEMINI_API_KEY")
-client = genai.Client(api_key=API_KEY)
+# ==========================================
+# 1. HARDENED SECURITY MIDDLEWARE (INLINE)
+# ==========================================
+API_KEY_NAME = "X-API-KEY"
+api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
-# ================== STRONG SYSTEM PROMPT ==================
+
+def validate_api_key(api_key: str = Security(api_key_header)):
+    """
+    Inlined security handler to prevent middleware bypass during test collection.
+    Strictly forces an HTTP 403 Forbidden if the header key is missing or wrong.
+    """
+    expected_key = os.getenv("CDSS_API_KEY", "prod-secret-fallback-key")
+
+    # CRITICAL FIX: If header is missing completely, api_key will be None
+    if not api_key or str(api_key).strip() != expected_key:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid or missing X-API-KEY header credential."
+        )
+    return api_key
+
+
+# ==========================================
+# 2. INITIALIZATION & INFRASTRUCTURE CONFIG
+# ==========================================
+app = FastAPI(title="Pharmacist CDSS Enterprise API")
+
+# Initialize Gemini & Retrieval Clients
+ai_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+
+sys_logger.info("📥 Initializing production sentence embedding transformer...")
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+chroma_client = chromadb.PersistentClient(path="./chroma_storage")
+collection = chroma_client.get_collection(name="business_knowledge")
+
+# ==========================================
+# 3. SCHEMAS, PROMPTS & GRAPH STATE
+# ==========================================
 SYSTEM_PROMPT = """
 You are a professional and careful Pharmacist AI Assistant. 
 Give safe, accurate and clear medicine information only.
@@ -30,12 +71,6 @@ STRICT RULES (Never break them):
 - End every response with the disclaimer.
 """
 
-print("📥 Loading embedding model...")
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-chroma_client = chromadb.PersistentClient(path="./chroma_storage")
-collection = chroma_client.get_collection(name="business_knowledge")
-
 
 class ChatRequest(BaseModel):
     session_id: str
@@ -43,51 +78,56 @@ class ChatRequest(BaseModel):
     medication: str = "None"
 
 
-SESSION_STORE = {}
+class ClinicalGraphState(BaseModel):
+    session_id: str
+    current_query: str
+    retrieved_context: List[str] = []
+    is_clinical: bool = False
+    raw_llm_output: str = ""
+    risk_level: str = "LOW"
+    confidence_score: str = "92%"
+    detected_emotions: List[str] = ["neutral"]
+    evidence_sources: List[str] = []
 
 
-def is_clinical_query(text: str) -> bool:
+# ==========================================
+# 4. LANGGRAPH NODE IMPLEMENTATIONS
+# ==========================================
+def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
+    """Node 1: Runs clinical triage checks and executes ChromaDB vector search."""
+    user_msg = state.current_query
+
     clinical_keywords = ["patient", "symptom", "fever", "cough", "pain", "feeling", "depressed", "anxiety", "worried"]
-    text_lower = text.lower()
-    return any(word in text_lower for word in clinical_keywords)
+    is_clinical = any(word in user_msg.lower() for word in clinical_keywords)
 
-
-@app.post("/chat")
-async def chat_endpoint(payload: ChatRequest):
-    session_id = payload.session_id
-    user_msg = payload.message.strip()
-
-    # Initialize session properly
-    if session_id not in SESSION_STORE:
-        SESSION_STORE[session_id] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-        ]
-
-    SESSION_STORE[session_id].append({"role": "user", "content": user_msg})
-
-    # RAG Retrieval
     try:
         query_vector = embedding_model.encode(user_msg).tolist()
         db_results = collection.query(query_embeddings=[query_vector], n_results=2)
-        retrieved_context = db_results['documents'][0] if db_results and db_results['documents'] else ["No matching guidelines found."]
-    except Exception:
-        retrieved_context = ["Database lookup failed."]
+        retrieved = db_results['documents'][0] if db_results and db_results['documents'] else [
+            "No matching guidelines found."]
+    except Exception as e:
+        sys_logger.error(f"Vector Database lookup error: {str(e)}")
+        retrieved = ["Database lookup failed."]
 
-    # Build context
-    context_string = "\n\n".join(retrieved_context)
-    history_lines = "\n".join([f"{turn['role'].upper()}: {turn['content']}" for turn in SESSION_STORE[session_id][-8:]])
+    evidence = [f"ChromaDB: {r[:100]}..." for r in retrieved]
 
-    clinical = is_clinical_query(user_msg)
+    return {
+        "is_clinical": is_clinical,
+        "retrieved_context": retrieved,
+        "evidence_sources": evidence
+    }
+
+
+def generation_node(state: ClinicalGraphState) -> Dict[str, Any]:
+    """Node 2: Passes prompt structure and contexts to Gemini 2.5 Flash."""
+    context_string = "\n\n".join(state.retrieved_context)
 
     full_prompt = f"""{SYSTEM_PROMPT}
 
 RETRIEVED GUIDELINES:
 {context_string}
 
-CONVERSATION HISTORY:
-{history_lines}
-
-USER QUESTION: {user_msg}
+USER QUESTION: {state.current_query}
 
 Answer in this exact format (no extra text before or after):
 
@@ -106,57 +146,92 @@ Verification Confidence: XX%
 Emotion State: [Neutral / Anxious / Distressed / Confused / Worried]
 This is AI assistance. Final decision should be made by a licensed pharmacist or doctor.
 """
-
-    # Call Gemini
     try:
-        response = client.models.generate_content(
+        response = ai_client.models.generate_content(
             model="gemini-2.5-flash",
             contents=full_prompt
         )
         assistant_text = response.text.strip()
     except Exception as e:
-        print(f"Gemini Error: {e}")
+        sys_logger.critical(f"Gemini API Communication Interruption: {str(e)}")
         assistant_text = "Sorry, I am temporarily unable to respond. Please try again."
 
-    SESSION_STORE[session_id].append({"role": "assistant", "content": assistant_text})
+    return {"raw_llm_output": assistant_text}
 
-    # ================== DYNAMIC PARSING FOR TELEMETRY ==================
-    # Extract dynamic verification confidence calculated directly by Gemini
-    confidence_match = re.search(r"Verification\s+Confidence:\s*(\d+%)", assistant_text, re.IGNORECASE)
+
+def telemetry_parsing_node(state: ClinicalGraphState) -> Dict[str, Any]:
+    """Node 3: Extracts confidence metrics, clinical severity, and patient emotion states."""
+    text = state.raw_llm_output
+
+    confidence_match = re.search(r"Verification\s+Confidence:\s*(\d+%)", text, re.IGNORECASE)
     confidence_score = confidence_match.group(1) if confidence_match else "92%"
 
-    # Extract dynamic clinical emotion state determined directly by Gemini
-    emotion_match = re.search(r"Emotion\s+State:\s*([A-Za-z]+)", assistant_text, re.IGNORECASE)
+    emotion_match = re.search(r"Emotion\s+State:\s*([A-Za-z]+)", text, re.IGNORECASE)
     parsed_emotion = emotion_match.group(1).lower() if emotion_match else "neutral"
-    detected_emotions = [parsed_emotion]
 
-    # Explicitly check for severe symptoms or Gemini's severity declaration to enforce the risk tier
-    if "severity: high" in assistant_text.lower():
+    if "severity: high" in text.lower():
         risk_level = "HIGH"
-    elif "severity: moderate" in assistant_text.lower() or clinical:
+    elif "severity: moderate" in text.lower() or state.is_clinical:
         risk_level = "MODERATE"
     else:
         risk_level = "LOW"
 
-    # Evidence
-    evidence_sources = [f"ChromaDB: {r[:100]}..." for r in retrieved_context]
+    return {
+        "confidence_score": confidence_score,
+        "detected_emotions": [parsed_emotion],
+        "risk_level": risk_level
+    }
+
+
+# ==========================================
+# 5. STATE GRAPH ORCHESTRATION BUILD
+# ==========================================
+workflow = StateGraph(ClinicalGraphState)
+
+workflow.add_node("triage_and_retrieve", triage_and_retrieve_node)
+workflow.add_node("gemini_generation", generation_node)
+workflow.add_node("telemetry_parsing", telemetry_parsing_node)
+
+workflow.add_edge(START, "triage_and_retrieve")
+workflow.add_edge("triage_and_retrieve", "gemini_generation")
+workflow.add_edge("gemini_generation", "telemetry_parsing")
+workflow.add_edge("telemetry_parsing", END)
+
+cdss_engine = workflow.compile(checkpointer=MemorySaver())
+
+
+# ==========================================
+# 6. FASTAPI ROUTE CONTROLLERS
+# ==========================================
+@app.post("/chat", dependencies=[Depends(validate_api_key)])
+async def chat_endpoint(payload: ChatRequest):
+    sys_logger.info(f"Processing clinical evaluation track on Session ID: {payload.session_id}")
+
+    config = {"configurable": {"thread_id": payload.session_id}}
+    initial_input = {
+        "session_id": payload.session_id,
+        "current_query": payload.message.strip()
+    }
+
+    output_state = cdss_engine.invoke(initial_input, config)
 
     audit_log = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S GMT", time.gmtime()),
-        "session_id": session_id,
-        "input_payload_size_chars": len(user_msg),
-        "clinical_risk_tier": risk_level,
-        "verification_confidence": confidence_score,
-        "retrieved_evidence_blocks_used": len(evidence_sources),
+        "session_id": payload.session_id,
+        "input_payload_size_chars": len(payload.message),
+        "clinical_risk_tier": output_state["risk_level"],
+        "verification_confidence": output_state["confidence_score"],
+        "retrieved_evidence_blocks_used": len(output_state["evidence_sources"]),
         "api_gateway_status": "200_OK_NATIVE_LLM"
     }
+    sys_logger.info(f"Audit log generated successfully for session {payload.session_id}")
 
     return {
-        "session_id": session_id,
-        "clinical_guidance": assistant_text,
-        "detected_emotions": detected_emotions,
-        "risk_level": risk_level,
-        "confidence_score": confidence_score,
-        "evidence_sources": evidence_sources,
+        "session_id": output_state["session_id"],
+        "clinical_guidance": output_state["raw_llm_output"],
+        "detected_emotions": output_state["detected_emotions"],
+        "risk_level": output_state["risk_level"],
+        "confidence_score": output_state["confidence_score"],
+        "evidence_sources": output_state["evidence_sources"],
         "audit_log": audit_log
     }
