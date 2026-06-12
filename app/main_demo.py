@@ -30,7 +30,6 @@ def validate_api_key(api_key: str = Security(api_key_header)):
     """
     expected_key = os.getenv("CDSS_API_KEY", "prod-secret-fallback-key")
 
-    # CRITICAL FIX: If header is missing completely, api_key will be None
     if not api_key or str(api_key).strip() != expected_key:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -50,8 +49,11 @@ ai_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 sys_logger.info("📥 Initializing production sentence embedding transformer...")
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-chroma_client = chromadb.PersistentClient(path="./chroma_storage")
-collection = chroma_client.get_collection(name="business_knowledge")
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
+
+# FIX 1: Target your real clinical database collection instead of default 'langchain'
+collection = chroma_client.get_collection(name="langchain")
+print("Collection count:", collection.count())
 
 # ==========================================
 # 3. SCHEMAS, PROMPTS & GRAPH STATE
@@ -97,19 +99,34 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
     """Node 1: Runs clinical triage checks and executes ChromaDB vector search."""
     user_msg = state.current_query
 
-    clinical_keywords = ["patient", "symptom", "fever", "cough", "pain", "feeling", "depressed", "anxiety", "worried"]
+    clinical_keywords = ["patient", "symptom", "fever", "cough", "pain", "feeling", "depressed", "anxiety", "worried",
+                         "taking", "drug", "medication", "dose", "warfarin", "amiodarone", "aspirin", "ibuprofen",
+                         "can i add", "interaction", "safe to", "mg"]
     is_clinical = any(word in user_msg.lower() for word in clinical_keywords)
 
+    evidence = []
     try:
-        query_vector = embedding_model.encode(user_msg).tolist()
+        # FIX 2: Clean conversational noise out of vector search by isolating drug names
+        search_query = user_msg
+        found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen"] if word in user_msg.lower()]
+        if found_drugs:
+            search_query = " ".join(found_drugs)
+
+        query_vector = embedding_model.encode(search_query).tolist()
         db_results = collection.query(query_embeddings=[query_vector], n_results=2)
-        retrieved = db_results['documents'][0] if db_results and db_results['documents'] else [
-            "No matching guidelines found."]
+
+        if db_results and db_results.get('documents') and len(db_results['documents'][0]) > 0:
+            retrieved = db_results['documents'][0]
+            # Formats telemetry source strings cleanly for Streamlit UI parsing
+            evidence = [f"ChromaDB Guidelines Chunk: {r[:120]}..." for r in retrieved]
+        else:
+            retrieved = ["No matching guidelines found in database."]
+            evidence = []
+
     except Exception as e:
         sys_logger.error(f"Vector Database lookup error: {str(e)}")
         retrieved = ["Database lookup failed."]
-
-    evidence = [f"ChromaDB: {r[:100]}..." for r in retrieved]
+        evidence = []
 
     return {
         "is_clinical": is_clinical,
@@ -215,6 +232,10 @@ async def chat_endpoint(payload: ChatRequest):
 
     output_state = cdss_engine.invoke(initial_input, config)
 
+    # Determine API status based on real vector extraction
+    has_evidence = len(output_state.get("evidence_sources", [])) > 0
+    gateway_status = "200_OK_RAG_CONTEXT" if has_evidence else "200_OK_NATIVE_LLM"
+
     audit_log = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S GMT", time.gmtime()),
         "session_id": payload.session_id,
@@ -222,7 +243,7 @@ async def chat_endpoint(payload: ChatRequest):
         "clinical_risk_tier": output_state["risk_level"],
         "verification_confidence": output_state["confidence_score"],
         "retrieved_evidence_blocks_used": len(output_state["evidence_sources"]),
-        "api_gateway_status": "200_OK_NATIVE_LLM"
+        "api_gateway_status": gateway_status
     }
     sys_logger.info(f"Audit log generated successfully for session {payload.session_id}")
 
