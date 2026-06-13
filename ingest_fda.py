@@ -10,12 +10,12 @@ ZIP_FILE_PATH = "drug-label-0001-of-0013.json.zip"
 
 print("📥 Initializing local vector models and ChromaDB clients...")
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-chroma_client = chromadb.PersistentClient(path="./chroma_storage")
+chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
 try:
-    collection = chroma_client.get_collection(name="business_knowledge")
+    collection = chroma_client.get_collection(name="langchain")
 except Exception:
-    collection = chroma_client.create_collection(name="business_knowledge")
+    collection = chroma_client.create_collection(name="langchain")
 
 if not os.path.exists(ZIP_FILE_PATH):
     raise FileNotFoundError(f"❌ Could not find '{ZIP_FILE_PATH}' in your current directory. "
