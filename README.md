@@ -233,7 +233,6 @@ Future enhancements include:
 
 ### Data Pipelines
 
-* Apache Airflow
 * Scheduled document ingestion
 * Automated vector database updates
 
@@ -271,7 +270,7 @@ GEMINI_API_KEY=your_gemini_api_key
 ### Run Locally
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn app.main_demo:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 API documentation:
@@ -282,34 +281,16 @@ http://localhost:8000/docs
 
 ---
 
-## 🐳 Docker Deployment
-
-Build image:
-
-```bash
-docker build -t pharmacist-cdss-api .
-```
-
-Run container:
-
-```bash
-docker run -d -p 8000:8000 \
--e GEMINI_API_KEY=your_gemini_api_key \
-pharmacist-cdss-api
-```
-
----
-
 ## 📦 Technologies Used
 
 * Python
 * FastAPI
 * PyTorch
 * DistilBERT
+* LangGraph
 * LangChain
 * ChromaDB
 * Gemini API
-* Docker
 * GitHub Actions
 * Pydantic
 * Uvicorn
@@ -334,7 +315,7 @@ This project is designed to demonstrate practical AI Engineering concepts:
 
 - FastAPI REST API
 - Pydantic Request Validation
-- Dockerized Deployment
+- Cloud-Native Deployment (Azure Container Apps)
 - ChromaDB Vector Store
 - Gemini LLM Integration
 - Structured Logging
