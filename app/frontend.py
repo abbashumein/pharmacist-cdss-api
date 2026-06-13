@@ -3,7 +3,11 @@ import requests
 import uuid
 import re
 
+# Points to your healthy Docker Container endpoint
 BACKEND_URL = "http://127.0.0.1:8000/chat"
+
+# Secure API Key configuration matching your backend APIKeyHeader validation fallback
+API_KEY = "prod-secret-fallback-key"
 
 st.set_page_config(
     page_title="Pharmacist CDSS",
@@ -24,7 +28,8 @@ if "telemetry_data" not in st.session_state:
         "risk_level": "LOW",
         "confidence_score": "N/A",
         "evidence_sources": [],
-        "audit_log": {}
+        "audit_log": {},
+        "clinical_summary": {}
     }
 
 
@@ -90,7 +95,8 @@ with st.sidebar:
             "risk_level": "LOW",
             "confidence_score": "N/A",
             "evidence_sources": [],
-            "audit_log": {}
+            "audit_log": {},
+            "clinical_summary": {}
         }
         st.rerun()
 
@@ -104,7 +110,6 @@ with col_chat:
         if message.get("role") == "system":
             continue
         with st.chat_message(message["role"]):
-            # Show clean version in chat — no raw CLINICAL_SUMMARY block
             display_text = clean_response(message["content"])
             st.markdown(display_text)
 
@@ -114,6 +119,12 @@ with col_chat:
             st.markdown(user_query)
         st.session_state.chat_history.append({"role": "user", "content": user_query})
 
+        # CRITICAL FIX: Match the clean case-sensitive header expected by your middleware
+        headers = {
+            "X-API-KEY": API_KEY,
+            "Content-Type": "application/json"
+        }
+
         payload = {
             "session_id": st.session_state.session_id,
             "message": user_query,
@@ -121,14 +132,13 @@ with col_chat:
         }
 
         with st.chat_message("assistant"):
-            with st.spinner("Analysing..."):
+            with st.spinner("Analyzing data streams..."):
                 try:
-                    response = requests.post(BACKEND_URL, json=payload)
+                    response = requests.post(BACKEND_URL, json=payload, headers=headers, timeout=15)
                     if response.status_code == 200:
                         data = response.json()
                         raw_guidance = data.get("clinical_guidance", "No response.")
 
-                        # Show clean text in chat
                         display_guidance = clean_response(raw_guidance)
                         st.markdown(display_guidance)
                         st.session_state.chat_history.append({
@@ -136,11 +146,10 @@ with col_chat:
                             "content": raw_guidance
                         })
 
-                        # Extract summary for telemetry panel
                         summary = extract_summary(raw_guidance)
 
                         st.session_state.telemetry_data = {
-                            "emotions": data.get("detected_emotions", []),
+                            "emotions": data.get("detected_emotions", ["neutral"]),
                             "context_blocks": data.get("retrieved_database_context", []),
                             "risk_level": data.get("risk_level", "LOW"),
                             "confidence_score": data.get("confidence_score", "N/A"),
@@ -149,12 +158,16 @@ with col_chat:
                             "clinical_summary": summary
                         }
 
-                    else:
-                        st.error(f"Backend error: {response.status_code}")
-                except Exception as e:
-                    st.error(f"Connection error: {str(e)}")
+                        # Force refresh the UI to render telemetry state immediately
+                        st.rerun()
 
-        st.rerun()
+                    else:
+                        st.error(f"Backend API Error: Received Status Code {response.status_code}")
+                        st.info("Check your Docker terminal logs to see why the API header validation rejected this request.")
+                except requests.exceptions.ConnectionError:
+                    st.error("Cannot reach the Docker container backend! Is it still running on port 8000?")
+                except Exception as e:
+                    st.error(f"Processing error: {str(e)}")
 
 # --- TELEMETRY PANEL ---
 with col_telemetry:
@@ -164,9 +177,9 @@ with col_telemetry:
     risk = tel.get("risk_level", "LOW")
 
     if risk == "HIGH":
-        st.error("🚨 **CLINICAL RISK: HIGH**\n\nImmediate GP or crisis team referral indicated.")
+        st.error("🚨 **CLINICAL RISK: HIGH**\n\nImmediate medical countermeasure validation required.")
     elif risk == "MODERATE":
-        st.warning("⚠️ **CLINICAL RISK: MODERATE**\n\nActive monitoring and GP review recommended.")
+        st.warning("⚠️ **CLINICAL RISK: MODERATE**\n\nActive monitoring and validation recommended.")
     else:
         st.success("✅ **CLINICAL RISK: LOW**\n\nNo acute safety triggers detected.")
 
@@ -189,18 +202,17 @@ with col_telemetry:
             unsafe_allow_html=True
         )
 
-    # Show parsed clinical summary in telemetry panel
     summary = tel.get("clinical_summary", {})
     if summary:
         st.markdown("---")
         st.markdown("#### 🩺 Clinical Summary")
 
         sev = summary.get("severity", "")
-        if sev == "severe":
+        if sev.lower() == "severe":
             st.error(f"**Severity:** {sev.upper()}")
-        elif sev == "moderate":
+        elif sev.lower() == "moderate":
             st.warning(f"**Severity:** {sev.upper()}")
-        elif sev in ["mild", "minimal"]:
+        elif sev.lower() in ["mild", "minimal"]:
             st.info(f"**Severity:** {sev.upper()}")
 
         if summary.get("key_symptoms"):
@@ -215,7 +227,7 @@ with col_telemetry:
     sources = tel.get("evidence_sources", [])
     if sources:
         for i, src in enumerate(sources):
-            st.info(f"📁 **Source {i+1}:** `{src}`")
+            st.info(f"📁 **Source {i + 1}:** `{src}`")
     else:
         st.caption("No sources retrieved.")
 
