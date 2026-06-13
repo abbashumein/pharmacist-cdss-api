@@ -1,10 +1,62 @@
 # Pharmacist CDSS: AI-Powered Clinical Decision Support System
 
-An intelligent Stateful RAG AI Agent designed to assist pharmacists with real-time clinical reasoning, drug safety checks, and decision support. Pharmacist CDSS is a production-oriented Clinical Decision Support System (CDSS) designed to assist healthcare professionals by combining machine learning, Retrieval-Augmented Generation (RAG), and Large Language Models (LLMs) into a unified AI workflow.
+Pharmacist CDSS is a production-oriented Clinical Decision Support System (CDSS) that assists pharmacists and healthcare professionals with medication safety checks, pharmaceutical information retrieval, and evidence-informed clinical decision support.
 
-It functions as a practical AI Agent that combines machine learning, Retrieval-Augmented Generation (RAG), and Gemini LLM to provide contextual, safe, and structured guidance to healthcare professionals. The system is engineered using modern AI engineering principles including modular service design, API-first development, containerization, retrieval pipelines, and scalable deployment patterns.
+The platform combines Retrieval-Augmented Generation (RAG), Large Language Models (LLMs), semantic search, and rule-based safety mechanisms to provide contextual pharmaceutical guidance during clinical consultations.
 
-Rather than functioning as a standalone machine learning model, the platform demonstrates how multiple AI components can collaborate to support clinical reasoning and pharmaceutical decision-making.
+Unlike traditional chatbots, the system integrates a structured retrieval pipeline with a vector database of pharmaceutical references, enabling responses to be grounded in retrieved medical knowledge rather than relying solely on LLM-generated content.
+
+The project demonstrates modern AI Engineering practices including API-first development, retrieval systems, vector databases, containerization, CI/CD foundations, modular service architecture, and scalable deployment workflows.
+
+---
+
+## Key Features
+
+### Clinical Decision Support
+
+* Medication information assistance
+* Drug safety guidance
+* Context-aware pharmaceutical recommendations
+* Structured consultation responses
+
+### Retrieval-Augmented Generation (RAG)
+
+* Semantic retrieval using embeddings
+* ChromaDB vector database
+* Evidence-grounded response generation
+* Context injection into LLM prompts
+
+### LLM-Powered Reasoning
+
+* Gemini-powered response generation
+* Context-aware clinical guidance
+* Multi-stage prompt orchestration
+* Safety-focused response construction
+
+### AI Engineering Infrastructure
+
+* FastAPI backend services
+* Docker containerization
+* Environment-based configuration
+* Modular service architecture
+* GitHub Actions CI/CD pipeline
+
+### Production-Oriented Design
+
+* API-first architecture
+* Retrieval pipelines
+* Scalable deployment strategy
+* Structured validation layer
+* Extensible knowledge base architecture
+
+---
+
+## Project Goal
+
+The objective of this project is to demonstrate how modern AI systems can combine retrieval mechanisms, vector databases, LLM reasoning, and backend engineering to support healthcare workflows in a safe and scalable manner.
+
+The repository focuses on practical AI Engineering concepts rather than standalone model training, showcasing how multiple AI components can be orchestrated into a deployable decision-support application.
+
 
 ---
 
