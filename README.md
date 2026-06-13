@@ -21,12 +21,11 @@ The current repository contains the core backend architecture and AI workflow.
 * Structured request/response handling
 * RESTful architecture
 
-#### Clinical Severity Classification
+#### Clinical Safety Classification
 
 * Fine-tuned DistilBERT model
-* PyTorch inference pipeline
-* Emotional and clinical risk assessment
-* Local inference without external model hosting
+* Local PyTorch inference pipeline
+* Consultation intent and risk categorization
 
 #### Retrieval-Augmented Generation (RAG)
 
@@ -123,7 +122,7 @@ README.md
 
 ## 🧠 AI Workflow
 
-1. Clinician submits patient information.
+1. Pharmacist submits medication-related query
 2. FastAPI validates incoming data.
 3. DistilBERT performs local severity analysis.
 4. ChromaDB retrieves relevant pharmaceutical references.
@@ -279,7 +278,18 @@ This project is designed to demonstrate practical AI Engineering concepts:
 * MLOps & LLMOps Foundations
 * Production-Oriented AI Development.
 
+## Production Features
 
+- FastAPI REST API
+- Pydantic Request Validation
+- Dockerized Deployment
+- ChromaDB Vector Store
+- Gemini LLM Integration
+- Structured Logging
+- Environment-Based Configuration
+- CI/CD Foundations
+- Modular Service Architecture
+- Retrieval-Augmented Generation (RAG)
 
 
 
