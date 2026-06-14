@@ -17,7 +17,7 @@ COPY ./frontend /code/frontend
 COPY ./ingest_fda.py /code/ingest_fda.py
 
 # Copy local database storage so the container has access to your vectors
-COPY ./chroma_storage /code/chroma_storage
+COPY ./chroma_db /code/chroma_db
 
 EXPOSE 8000
 
