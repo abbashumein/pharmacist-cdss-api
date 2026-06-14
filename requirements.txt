@@ -13,7 +13,7 @@ sentence-transformers==2.6.1
 langchain-core==0.2.43
 langchain-chroma==0.1.4
 
-chromadb==0.5.23
+chromadb==1.5.9
 
 google-genai==0.2.0
 
