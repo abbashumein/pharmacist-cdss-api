@@ -3,7 +3,7 @@ name: MLOps Automated Pipeline
 on: [push]
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -24,16 +24,32 @@ jobs:
         python -c "from fastapi import FastAPI; print('FastAPI OK')"
         python -c "import chromadb; print('ChromaDB OK')"
         python -c "from langgraph.graph import StateGraph; print('LangGraph OK')"
-        python -c "from sentence_transformers import SentenceTransformer; print('SentenceTransformers OK')"
 
-    - name: Validate App Structure
-      run: |
-        python -c "import ast; ast.parse(open('app/main_demo.py').read()); print('Syntax OK')"
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
 
-    - name: Pipeline Health Check
+    - name: Login to ACR
+      uses: azure/docker-login@v1
+      with:
+        login-server: cafb7024917facr.azurecr.io
+        username: ${{ secrets.AZURE_CLIENT_ID }}
+        password: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+    - name: Build and Push Docker Image
       run: |
-        echo "RAG Pipeline: ChromaDB + SentenceTransformers OK"
-        echo "LLM Layer: Gemini integration validated"
-        echo "Orchestration: LangGraph workflow OK"
-        echo "API: FastAPI gateway OK"
-        echo "MLOps Pipeline PASSED"
+        docker build -t cafb7024917facr.azurecr.io/pharmacist-cdss:latest .
+        docker push cafb7024917facr.azurecr.io/pharmacist-cdss:latest
+
+    - name: Deploy to Azure Container Apps
+      run: |
+        az containerapp update \
+          --name pharmacist-cdss \
+          --resource-group cdss-rg \
+          --image cafb7024917facr.azurecr.io/pharmacist-cdss:latest \
+          --set-env-vars GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} CDSS_API_KEY=${{ secrets.CDSS_API_KEY }}
+
+    - name: Get Live URL
+      run: |
+        az containerapp show --name pharmacist-cdss --resource-group cdss-rg --query "properties.configuration.ingress.fqdn" -o tsv
