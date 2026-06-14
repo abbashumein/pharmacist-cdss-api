@@ -52,7 +52,7 @@ embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
 # FIX 1: Target your real clinical database collection instead of default 'langchain'
-collection = chroma_client.get_collection(name="langchain")
+collection = chroma_client.get_or_create_collection(name="langchain")
 print("Collection count:", collection.count())
 
 # ==========================================
