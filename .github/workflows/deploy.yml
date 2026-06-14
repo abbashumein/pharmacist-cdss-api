@@ -44,11 +44,21 @@ jobs:
 
     - name: Deploy to Azure Container Apps
       run: |
-        az containerapp update \
+        az containerapp create \
           --name pharmacist-cdss \
           --resource-group cdss-rg \
+          --environment pharmacist-cdss-env \
           --image cafb7024917facr.azurecr.io/pharmacist-cdss:latest \
-          --set-env-vars GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} CDSS_API_KEY=${{ secrets.CDSS_API_KEY }}
+          --target-port 8000 \
+          --ingress external \
+          --registry-server cafb7024917facr.azurecr.io \
+          --registry-username ${{ secrets.AZURE_CLIENT_ID }} \
+          --registry-password ${{ secrets.AZURE_CLIENT_SECRET }} \
+          --env-vars GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }} CDSS_API_KEY=${{ secrets.CDSS_API_KEY }} \
+        || az containerapp update \
+          --name pharmacist-cdss \
+          --resource-group cdss-rg \
+          --image cafb7024917facr.azurecr.io/pharmacist-cdss:latest
 
     - name: Get Live URL
       run: |
