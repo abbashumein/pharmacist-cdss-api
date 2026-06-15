@@ -10,7 +10,6 @@ from fastapi.security.api_key import APIKeyHeader
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from google import genai
-from chromadb.utils import embedding_functions
 import chromadb
 
 # Component Imports from your architectural design
@@ -45,14 +44,6 @@ app = FastAPI(title="Pharmacist CDSS Enterprise API")
 
 # Initialize Gemini & Retrieval Clients
 ai_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-
-sys_logger.info("📥 Initializing production sentence embedding transformer...")
-embedding_model = embedding_functions.DefaultEmbeddingFunction()
-
-
-def get_embedding_model():
-    return embedding_model
-
 
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
@@ -117,9 +108,7 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         if found_drugs:
             search_query = " ".join(found_drugs)
 
-        # Updated to leverage DefaultEmbeddingFunction processing format
-        query_vector = get_embedding_model().embed_with_retries([search_query])[0]
-        db_results = collection.query(query_embeddings=[query_vector], n_results=2)
+        db_results = collection.query(query_texts=[search_query], n_results=2)
 
         if db_results and db_results.get('documents') and len(db_results['documents'][0]) > 0:
             retrieved = db_results['documents'][0]
