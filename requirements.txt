@@ -6,9 +6,8 @@ pydantic==2.9.2
 
 numpy==1.26.4
 
-torch==2.2.1+cpu
 transformers==4.38.2
-sentence-transformers==2.6.1
+sentence-transformers==2.2.2
 
 langchain-core==0.2.43
 langchain-chroma==0.1.4
