@@ -11,6 +11,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from google import genai
 import chromadb
+import chromadb.utils.embedding_functions as embedding_functions
 
 # Component Imports from your architectural design
 from app.utils.logger import sys_logger
@@ -42,13 +43,27 @@ def validate_api_key(api_key: str = Security(api_key_header)):
 # ==========================================
 app = FastAPI(title="Pharmacist CDSS Enterprise API")
 
-# Initialize Gemini & Retrieval Clients
-ai_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+# Fetch keys safely
+gemini_api_key = os.getenv("GEMINI_API_KEY")
 
+# Initialize Gemini Client
+ai_client = genai.Client(api_key=gemini_api_key)
+
+# Configure the lightweight cloud embedding engine to bypass ONNXRuntime local memory load
+google_ef = embedding_functions.GoogleGeminiEmbeddingFunction(
+    api_key=gemini_api_key,
+    model_name="gemini-embedding-001",
+    task_type="RETRIEVAL_DOCUMENT"
+)
+
+# Connect to ChromaDB using our custom cloud embedding function configuration mapping
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
-# FIX 1: Target your real clinical database collection instead of default 'langchain'
-collection = chroma_client.get_or_create_collection(name="langchain")
+# Target your real clinical database collection using the cloud embedding function mapping
+collection = chroma_client.get_or_create_collection(
+    name="langchain",
+    embedding_function=google_ef
+)
 print("Collection count:", collection.count())
 
 # ==========================================
@@ -102,7 +117,7 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
 
     evidence = []
     try:
-        # FIX 2: Clean conversational noise out of vector search by isolating drug names
+        # Clean conversational noise out of vector search by isolating drug names
         search_query = user_msg
         found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen"] if word in user_msg.lower()]
         if found_drugs:
