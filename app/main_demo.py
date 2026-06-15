@@ -10,7 +10,7 @@ from fastapi.security.api_key import APIKeyHeader
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from google import genai
-from sentence_transformers import SentenceTransformer
+from chromadb.utils import embedding_functions
 import chromadb
 
 # Component Imports from your architectural design
@@ -47,13 +47,13 @@ app = FastAPI(title="Pharmacist CDSS Enterprise API")
 ai_client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 sys_logger.info("📥 Initializing production sentence embedding transformer...")
-embedding_model = None
+embedding_model = embedding_functions.DefaultEmbeddingFunction()
+
 
 def get_embedding_model():
-    global embedding_model
-    if embedding_model is None:
-        embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
     return embedding_model
+
+
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
 # FIX 1: Target your real clinical database collection instead of default 'langchain'
@@ -117,7 +117,8 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         if found_drugs:
             search_query = " ".join(found_drugs)
 
-        query_vector = get_embedding_model().encode(user_msg).tolist()
+        # Updated to leverage DefaultEmbeddingFunction processing format
+        query_vector = get_embedding_model().embed_with_retries([search_query])[0]
         db_results = collection.query(query_embeddings=[query_vector], n_results=2)
 
         if db_results and db_results.get('documents') and len(db_results['documents'][0]) > 0:
