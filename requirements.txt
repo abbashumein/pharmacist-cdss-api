@@ -1,21 +1,12 @@
---extra-index-url https://download.pytorch.org/whl/cpu
-
 fastapi==0.110.3
 uvicorn==0.28.0
 pydantic==2.9.2
-
 numpy==1.26.4
-
-transformers==4.38.2
-sentence-transformers==2.2.2
-
+chromadb==0.5.3
+google-genai==0.2.0
+loguru==0.7.2
+langgraph==0.2.34
 langchain-core==0.2.43
 langchain-chroma==0.1.4
-
-chromadb==0.5.3
-
-google-genai==0.2.0
-
-loguru==0.7.2
-
-langgraph==0.2.34
+sentence-transformers==2.2.2
+torch==2.1.0+cpu --extra-index-url https://download.pytorch.org/whl/cpu
