@@ -8,3 +8,4 @@ loguru==0.7.2
 langgraph==0.2.34
 langchain-core==0.2.43
 langchain-chroma==0.1.4
+python-multipart
