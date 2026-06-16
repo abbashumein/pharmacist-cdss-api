@@ -1,9 +1,12 @@
 import os
 import re
 import time
+import json
+import zipfile
+import io
 from typing import List, Dict, Any
 from pydantic import BaseModel
-from fastapi import FastAPI, Depends, HTTPException, status, Security
+from fastapi import FastAPI, Depends, HTTPException, status, Security, UploadFile, File, Header
 from fastapi.security.api_key import APIKeyHeader
 
 # LangGraph and AI SDK Engine Core Imports
@@ -74,6 +77,7 @@ collection = chroma_client.get_or_create_collection(
     name="langchain",
     embedding_function=google_ef
 )
+
 
 # ==========================================
 # 4. SCHEMAS, PROMPTS & GRAPH STATE
@@ -272,3 +276,77 @@ async def chat_endpoint(payload: ChatRequest):
         "evidence_sources": output_state["evidence_sources"],
         "audit_log": audit_log
     }
+
+
+# ==========================================
+# 8. ADMINISTRATIVE INGESTION CONTROLLER
+# ==========================================
+@app.post("/admin/ingest", dependencies=[Depends(validate_api_key)])
+async def admin_ingest_data(file: UploadFile = File(...)):
+    """
+    Secure admin endpoint to upload and ingest the FDA zip file directly 
+    into the cloud vector database using our stable Gemini embedding function.
+    """
+    try:
+        # Clear out the empty collection safely
+        try:
+            chroma_client.delete_collection(name="langchain")
+        except Exception:
+            pass
+            
+        # Re-create it with our running cloud embedding engine
+        global collection
+        collection = chroma_client.create_collection(
+            name="langchain",
+            embedding_function=google_ef
+        )
+
+        # Read the uploaded ZIP file directly out of memory
+        file_bytes = await file.read()
+        with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
+            json_filename = z.namelist()[0]
+            with z.open(json_filename) as f:
+                fda_data = json.load(f)
+
+        records = fda_data.get("results", [])
+        records_to_process = records[:1000]  # Process up to 1,000 files
+
+        documents = []
+        ids = []
+        batch_size = 25  # Safe batch size for cloud pipeline
+
+        for idx, drug in enumerate(records_to_process):
+            openfda_metadata = drug.get("openfda", {})
+            generic_names = openfda_metadata.get("generic_name", [])
+            brand_names = openfda_metadata.get("brand_name", [])
+
+            if not generic_names:
+                continue
+
+            generic_name = generic_names[0]
+            brand_name = brand_names[0] if brand_names else "Generic Version Available"
+
+            interactions = drug.get("drug_interactions", ["No specific interaction records provided on standard label."])[0]
+            contraindications = drug.get("contraindications", ["No specific acute contraindications listed."])[0]
+
+            text_chunk = (
+                f"Drug Name: {generic_name} ({brand_name}) | "
+                f"FDA Interactions Field: {interactions[:400]}... | "
+                f"Clinical Contraindications: {contraindications[:400]}..."
+            )
+
+            documents.append(text_chunk)
+            ids.append(f"fda_label_chunk_{idx}")
+
+            # Push batches to ChromaDB using the Gemini cloud embedding function
+            if len(documents) == batch_size or idx == len(records_to_process) - 1:
+                collection.add(documents=documents, ids=ids)
+                documents, ids = [], []
+
+        return {
+            "status": "success", 
+            "message": f"Successfully loaded {len(records_to_process)} records into the RAG vector database!"
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
