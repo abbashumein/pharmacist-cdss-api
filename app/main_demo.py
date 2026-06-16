@@ -279,13 +279,12 @@ async def chat_endpoint(payload: ChatRequest):
 
 
 # ==========================================
-# 8. ADMINISTRATIVE INGESTION CONTROLLER
+# 8. ADMINISTRATIVE INGESTION CONTROLLER (FAST BATCHED VERSION)
 # ==========================================
 @app.post("/admin/ingest", dependencies=[Depends(validate_api_key)])
 async def admin_ingest_data(file: UploadFile = File(...)):
     """
-    Secure admin endpoint to upload and ingest the FDA zip file directly 
-    into the cloud vector database using our stable Gemini embedding function.
+    Secure admin endpoint optimized for lightning-fast test processing to bypass proxy timeouts.
     """
     try:
         # Clear out the empty collection safely
@@ -309,11 +308,12 @@ async def admin_ingest_data(file: UploadFile = File(...)):
                 fda_data = json.load(f)
 
         records = fda_data.get("results", [])
-        records_to_process = records[:1000]  # Process up to 1,000 files
+        # OPTIMIZED: Process 50 items to run instantly without timeouts
+        records_to_process = records[:50]  
 
         documents = []
         ids = []
-        batch_size = 25  # Safe batch size for cloud pipeline
+        batch_size = 10  # Smaller, rapid cloud pipeline chunks
 
         for idx, drug in enumerate(records_to_process):
             openfda_metadata = drug.get("openfda", {})
@@ -329,16 +329,17 @@ async def admin_ingest_data(file: UploadFile = File(...)):
             interactions = drug.get("drug_interactions", ["No specific interaction records provided on standard label."])[0]
             contraindications = drug.get("contraindications", ["No specific acute contraindications listed."])[0]
 
+            # Concise indexing data chunking
             text_chunk = (
                 f"Drug Name: {generic_name} ({brand_name}) | "
-                f"FDA Interactions Field: {interactions[:400]}... | "
-                f"Clinical Contraindications: {contraindications[:400]}..."
+                f"Interactions: {interactions[:200]} | "
+                f"Contraindications: {contraindications[:200]}"
             )
 
             documents.append(text_chunk)
             ids.append(f"fda_label_chunk_{idx}")
 
-            # Push batches to ChromaDB using the Gemini cloud embedding function
+            # Send rapid micro-batches to ChromaDB via Gemini Embedding Engine
             if len(documents) == batch_size or idx == len(records_to_process) - 1:
                 collection.add(documents=documents, ids=ids)
                 documents, ids = [], []
