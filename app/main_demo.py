@@ -11,7 +11,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from google import genai
 import chromadb
-import chromadb.utils.embedding_functions as embedding_functions
+from chromadb import EmbeddingFunction, Documents, Embeddings
 
 # Component Imports from your architectural design
 from app.utils.logger import sys_logger
@@ -24,12 +24,7 @@ api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 
 def validate_api_key(api_key: str = Security(api_key_header)):
-    """
-    Inlined security handler to prevent middleware bypass during test collection.
-    Strictly forces an HTTP 403 Forbidden if the header key is missing or wrong.
-    """
     expected_key = os.getenv("CDSS_API_KEY", "prod-secret-fallback-key")
-
     if not api_key or str(api_key).strip() != expected_key:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -39,35 +34,51 @@ def validate_api_key(api_key: str = Security(api_key_header)):
 
 
 # ==========================================
-# 2. INITIALIZATION & INFRASTRUCTURE CONFIG
+# 2. CUSTOM GEMINI EMBEDDING FUNCTION
+# ==========================================
+class GeminiEmbeddingFunction(EmbeddingFunction):
+    """
+    Custom embedding function using google-genai SDK.
+    Bypasses chromadb.utils.embedding_functions naming issues entirely.
+    """
+    def __init__(self, api_key: str, model_name: str = "models/text-embedding-004"):
+        self.client = genai.Client(api_key=api_key)
+        self.model_name = model_name
+
+    def __call__(self, input: Documents) -> Embeddings:
+        result = self.client.models.embed_content(
+            model=self.model_name,
+            contents=input
+        )
+        return [e.values for e in result.embeddings]
+
+
+# ==========================================
+# 3. INITIALIZATION & INFRASTRUCTURE CONFIG
 # ==========================================
 app = FastAPI(title="Pharmacist CDSS Enterprise API")
 
-# Fetch keys safely
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 
 # Initialize Gemini Client
 ai_client = genai.Client(api_key=gemini_api_key)
 
-# Configure the lightweight cloud embedding engine to bypass ONNXRuntime local memory load
-google_ef = embedding_functions.GoogleGeminiEmbeddingFunction(
-    api_key=gemini_api_key,
-    model_name="gemini-embedding-001",
-    task_type="RETRIEVAL_DOCUMENT"
-)
+# Use our custom embedding function — no chromadb built-in naming dependency
+google_ef = GeminiEmbeddingFunction(api_key=gemini_api_key)
 
-# Connect to ChromaDB using our custom cloud embedding function configuration mapping
+# Connect to ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
-# Target your real clinical database collection using the cloud embedding function mapping
+# Target clinical database collection
 collection = chroma_client.get_or_create_collection(
     name="langchain",
     embedding_function=google_ef
 )
 print("Collection count:", collection.count())
 
+
 # ==========================================
-# 3. SCHEMAS, PROMPTS & GRAPH STATE
+# 4. SCHEMAS, PROMPTS & GRAPH STATE
 # ==========================================
 SYSTEM_PROMPT = """
 You are a professional and careful Pharmacist AI Assistant. 
@@ -104,7 +115,7 @@ class ClinicalGraphState(BaseModel):
 
 
 # ==========================================
-# 4. LANGGRAPH NODE IMPLEMENTATIONS
+# 5. LANGGRAPH NODE IMPLEMENTATIONS
 # ==========================================
 def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
     """Node 1: Runs clinical triage checks and executes ChromaDB vector search."""
@@ -117,7 +128,6 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
 
     evidence = []
     try:
-        # Clean conversational noise out of vector search by isolating drug names
         search_query = user_msg
         found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen"] if word in user_msg.lower()]
         if found_drugs:
@@ -127,7 +137,6 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
 
         if db_results and db_results.get('documents') and len(db_results['documents'][0]) > 0:
             retrieved = db_results['documents'][0]
-            # Formats telemetry source strings cleanly for Streamlit UI parsing
             evidence = [f"ChromaDB Guidelines Chunk: {r[:120]}..." for r in retrieved]
         else:
             retrieved = ["No matching guidelines found in database."]
@@ -211,7 +220,7 @@ def telemetry_parsing_node(state: ClinicalGraphState) -> Dict[str, Any]:
 
 
 # ==========================================
-# 5. STATE GRAPH ORCHESTRATION BUILD
+# 6. STATE GRAPH ORCHESTRATION BUILD
 # ==========================================
 workflow = StateGraph(ClinicalGraphState)
 
@@ -228,7 +237,7 @@ cdss_engine = workflow.compile(checkpointer=MemorySaver())
 
 
 # ==========================================
-# 6. FASTAPI ROUTE CONTROLLERS
+# 7. FASTAPI ROUTE CONTROLLERS
 # ==========================================
 @app.post("/chat", dependencies=[Depends(validate_api_key)])
 async def chat_endpoint(payload: ChatRequest):
@@ -242,7 +251,6 @@ async def chat_endpoint(payload: ChatRequest):
 
     output_state = cdss_engine.invoke(initial_input, config)
 
-    # Determine API status based on real vector extraction
     has_evidence = len(output_state.get("evidence_sources", [])) > 0
     gateway_status = "200_OK_RAG_CONTEXT" if has_evidence else "200_OK_NATIVE_LLM"
 
