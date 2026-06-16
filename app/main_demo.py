@@ -15,6 +15,8 @@ from langgraph.checkpoint.memory import MemorySaver
 from google import genai
 import chromadb
 from chromadb import EmbeddingFunction, Documents, Embeddings
+from fastapi import BackgroundTasks
+import urllib.request
 
 # Component Imports from your architectural design
 from app.utils.logger import sys_logger
@@ -281,73 +283,58 @@ async def chat_endpoint(payload: ChatRequest):
 # ==========================================
 # 8. ADMINISTRATIVE INGESTION CONTROLLER (FAST BATCHED VERSION)
 # ==========================================
-@app.post("/admin/ingest", dependencies=[Depends(validate_api_key)])
-async def admin_ingest_data(file: UploadFile = File(...)):
-    """
-    Secure admin endpoint optimized for lightning-fast test processing to bypass proxy timeouts.
-    """
-    try:
-        # Clear out the empty collection safely
-        try:
-            chroma_client.delete_collection(name="langchain")
-        except Exception:
-            pass
-            
-        # Re-create it with our running cloud embedding engine
-        global collection
-        collection = chroma_client.create_collection(
-            name="langchain",
-            embedding_function=google_ef
-        )
 
-        # Read the uploaded ZIP file directly out of memory
-        file_bytes = await file.read()
-        with zipfile.ZipFile(io.BytesIO(file_bytes)) as z:
-            json_filename = z.namelist()[0]
-            with z.open(json_filename) as f:
-                fda_data = json.load(f)
+
+ingest_status = {"running": False, "done": False, "count": 0, "error": None}
+
+def run_ingest():
+    global collection, ingest_status
+    ingest_status = {"running": True, "done": False, "count": 0, "error": None}
+    try:
+        chroma_client.delete_collection(name="langchain")
+    except:
+        pass
+    collection = chroma_client.create_collection(
+        name="langchain", embedding_function=google_ef
+    )
+    try:
+        url = "https://api.fda.gov/drug/label.json?limit=50"
+        with urllib.request.urlopen(url, timeout=30) as r:
+            fda_data = json.loads(r.read().decode())
 
         records = fda_data.get("results", [])
-        # OPTIMIZED: Process 50 items to run instantly without timeouts
-        records_to_process = records[:50]  
+        documents, ids = [], []
 
-        documents = []
-        ids = []
-        batch_size = 10  # Smaller, rapid cloud pipeline chunks
-
-        for idx, drug in enumerate(records_to_process):
-            openfda_metadata = drug.get("openfda", {})
-            generic_names = openfda_metadata.get("generic_name", [])
-            brand_names = openfda_metadata.get("brand_name", [])
-
+        for idx, drug in enumerate(records):
+            openfda = drug.get("openfda", {})
+            generic_names = openfda.get("generic_name", [])
             if not generic_names:
                 continue
-
             generic_name = generic_names[0]
-            brand_name = brand_names[0] if brand_names else "Generic Version Available"
-
-            interactions = drug.get("drug_interactions", ["No specific interaction records provided on standard label."])[0]
-            contraindications = drug.get("contraindications", ["No specific acute contraindications listed."])[0]
-
-            # Concise indexing data chunking
-            text_chunk = (
-                f"Drug Name: {generic_name} ({brand_name}) | "
-                f"Interactions: {interactions[:200]} | "
-                f"Contraindications: {contraindications[:200]}"
-            )
-
+            brand_name = openfda.get("brand_name", ["Generic"])[0]
+            interactions = drug.get("drug_interactions", ["None"])[0][:200]
+            contraindications = drug.get("contraindications", ["None"])[0][:200]
+            text_chunk = f"Drug: {generic_name} ({brand_name}) | Interactions: {interactions} | Contraindications: {contraindications}"
             documents.append(text_chunk)
-            ids.append(f"fda_label_chunk_{idx}")
+            ids.append(f"fda_{idx}")
 
-            # Send rapid micro-batches to ChromaDB via Gemini Embedding Engine
-            if len(documents) == batch_size or idx == len(records_to_process) - 1:
+            if len(documents) == 10:
                 collection.add(documents=documents, ids=ids)
                 documents, ids = [], []
 
-        return {
-            "status": "success", 
-            "message": f"Successfully loaded {len(records_to_process)} records into the RAG vector database!"
-        }
+        if documents:
+            collection.add(documents=documents, ids=ids)
+
+        ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Ingestion failed: {str(e)}")
+        ingest_status = {"running": False, "done": False, "count": 0, "error": str(e)}
+
+@app.post("/admin/ingest", dependencies=[Depends(validate_api_key)])
+async def admin_ingest(background_tasks: BackgroundTasks):
+    background_tasks.add_task(run_ingest)
+    return {"status": "ingestion_started", "message": "Running in background. Check /admin/status"}
+
+@app.get("/admin/status", dependencies=[Depends(validate_api_key)])
+async def ingest_status_check():
+    return ingest_status
