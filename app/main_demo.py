@@ -74,8 +74,6 @@ collection = chroma_client.get_or_create_collection(
     name="langchain",
     embedding_function=google_ef
 )
-print("Collection count:", collection.count())
-
 
 # ==========================================
 # 4. SCHEMAS, PROMPTS & GRAPH STATE
