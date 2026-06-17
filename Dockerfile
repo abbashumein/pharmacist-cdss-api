@@ -19,6 +19,8 @@ COPY ./ingest_fda.py /code/ingest_fda.py
 # Copy local database storage so the container has access to your vectors
 COPY ./chroma_db /code/chroma_db
 
+COPY ./static /code/static
+
 EXPOSE 8000
 
 # FIXED: Points to main_demo instead of main
