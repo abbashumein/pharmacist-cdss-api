@@ -3,7 +3,7 @@ uvicorn==0.28.0
 pydantic==2.9.2
 numpy==1.26.4
 chromadb==0.5.3
-google-genai==0.2.0
+google-genai==1.0.0
 loguru==0.7.2
 langgraph==0.2.34
 langchain-core==0.2.43
