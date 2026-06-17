@@ -2,28 +2,22 @@ import os
 import re
 import time
 import json
-import zipfile
-import io
+import urllib.request
 from typing import List, Dict, Any
 from pydantic import BaseModel
-from fastapi import FastAPI, Depends, HTTPException, status, Security, UploadFile, File, Header
+from fastapi import FastAPI, Depends, HTTPException, status, Security, BackgroundTasks
 from fastapi.security.api_key import APIKeyHeader
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
-# LangGraph and AI SDK Engine Core Imports
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from google import genai
 import chromadb
 from chromadb import EmbeddingFunction, Documents, Embeddings
-from fastapi import BackgroundTasks
-import urllib.request
 
-# Component Imports from your architectural design
 from app.utils.logger import sys_logger
 
-# ==========================================
-# 1. HARDENED SECURITY MIDDLEWARE (INLINE)
-# ==========================================
 API_KEY_NAME = "X-API-KEY"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
@@ -38,16 +32,9 @@ def validate_api_key(api_key: str = Security(api_key_header)):
     return api_key
 
 
-# ==========================================
-# 2. CUSTOM GEMINI EMBEDDING FUNCTION
-# ==========================================
 class GeminiEmbeddingFunction(EmbeddingFunction):
-    """
-    Custom embedding function using google-genai SDK.
-    Bypasses chromadb.utils.embedding_functions naming issues entirely.
-    """
-
-    def __init__(self, api_key: str, model_name: str = "models/gemini-embedding-001"):        self.client = genai.Client(api_key=api_key)
+    def __init__(self, api_key: str, model_name: str = "models/gemini-embedding-001"):
+        self.client = genai.Client(api_key=api_key)
         self.model_name = model_name
 
     def __call__(self, input: Documents) -> Embeddings:
@@ -58,32 +45,25 @@ class GeminiEmbeddingFunction(EmbeddingFunction):
         return [e.values for e in result.embeddings]
 
 
-# ==========================================
-# 3. INITIALIZATION & INFRASTRUCTURE CONFIG
-# ==========================================
 app = FastAPI(title="Pharmacist CDSS Enterprise API")
 
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 gemini_api_key = os.getenv("GEMINI_API_KEY")
-
-# Initialize Gemini Client
 ai_client = genai.Client(api_key=gemini_api_key)
-
-# Use our custom embedding function — no chromadb built-in naming dependency
 google_ef = GeminiEmbeddingFunction(api_key=gemini_api_key)
-
-# Connect to ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
-
-# Target clinical database collection
 collection = chroma_client.get_or_create_collection(
     name="langchain",
     embedding_function=google_ef
 )
 
 
-# ==========================================
-# 4. SCHEMAS, PROMPTS & GRAPH STATE
-# ==========================================
+@app.get("/")
+async def serve_frontend():
+    return FileResponse("static/index.html")
+
+
 SYSTEM_PROMPT = """
 You are a professional and careful Pharmacist AI Assistant. 
 Give safe, accurate and clear medicine information only.
@@ -118,13 +98,8 @@ class ClinicalGraphState(BaseModel):
     evidence_sources: List[str] = []
 
 
-# ==========================================
-# 5. LANGGRAPH NODE IMPLEMENTATIONS
-# ==========================================
 def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
-    """Node 1: Runs clinical triage checks and executes ChromaDB vector search."""
     user_msg = state.current_query
-
     clinical_keywords = ["patient", "symptom", "fever", "cough", "pain", "feeling", "depressed", "anxiety", "worried",
                          "taking", "drug", "medication", "dose", "warfarin", "amiodarone", "aspirin", "ibuprofen",
                          "can i add", "interaction", "safe to", "mg"]
@@ -151,17 +126,11 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         retrieved = ["Database lookup failed."]
         evidence = []
 
-    return {
-        "is_clinical": is_clinical,
-        "retrieved_context": retrieved,
-        "evidence_sources": evidence
-    }
+    return {"is_clinical": is_clinical, "retrieved_context": retrieved, "evidence_sources": evidence}
 
 
 def generation_node(state: ClinicalGraphState) -> Dict[str, Any]:
-    """Node 2: Passes prompt structure and contexts to Gemini 2.5 Flash."""
     context_string = "\n\n".join(state.retrieved_context)
-
     full_prompt = f"""{SYSTEM_PROMPT}
 
 RETRIEVED GUIDELINES:
@@ -187,10 +156,7 @@ Emotion State: [Neutral / Anxious / Distressed / Confused / Worried]
 This is AI assistance. Final decision should be made by a licensed pharmacist or doctor.
 """
     try:
-        response = ai_client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=full_prompt
-        )
+        response = ai_client.models.generate_content(model="gemini-2.5-flash", contents=full_prompt)
         assistant_text = response.text.strip()
     except Exception as e:
         sys_logger.critical(f"Gemini API Communication Interruption: {str(e)}")
@@ -200,12 +166,9 @@ This is AI assistance. Final decision should be made by a licensed pharmacist or
 
 
 def telemetry_parsing_node(state: ClinicalGraphState) -> Dict[str, Any]:
-    """Node 3: Extracts confidence metrics, clinical severity, and patient emotion states."""
     text = state.raw_llm_output
-
     confidence_match = re.search(r"Verification\s+Confidence:\s*(\d+%)", text, re.IGNORECASE)
     confidence_score = confidence_match.group(1) if confidence_match else "92%"
-
     emotion_match = re.search(r"Emotion\s+State:\s*([A-Za-z]+)", text, re.IGNORECASE)
     parsed_emotion = emotion_match.group(1).lower() if emotion_match else "neutral"
 
@@ -216,48 +179,28 @@ def telemetry_parsing_node(state: ClinicalGraphState) -> Dict[str, Any]:
     else:
         risk_level = "LOW"
 
-    return {
-        "confidence_score": confidence_score,
-        "detected_emotions": [parsed_emotion],
-        "risk_level": risk_level
-    }
+    return {"confidence_score": confidence_score, "detected_emotions": [parsed_emotion], "risk_level": risk_level}
 
 
-# ==========================================
-# 6. STATE GRAPH ORCHESTRATION BUILD
-# ==========================================
 workflow = StateGraph(ClinicalGraphState)
-
 workflow.add_node("triage_and_retrieve", triage_and_retrieve_node)
 workflow.add_node("gemini_generation", generation_node)
 workflow.add_node("telemetry_parsing", telemetry_parsing_node)
-
 workflow.add_edge(START, "triage_and_retrieve")
 workflow.add_edge("triage_and_retrieve", "gemini_generation")
 workflow.add_edge("gemini_generation", "telemetry_parsing")
 workflow.add_edge("telemetry_parsing", END)
-
 cdss_engine = workflow.compile(checkpointer=MemorySaver())
 
 
-# ==========================================
-# 7. FASTAPI ROUTE CONTROLLERS
-# ==========================================
 @app.post("/chat", dependencies=[Depends(validate_api_key)])
 async def chat_endpoint(payload: ChatRequest):
     sys_logger.info(f"Processing clinical evaluation track on Session ID: {payload.session_id}")
-
     config = {"configurable": {"thread_id": payload.session_id}}
-    initial_input = {
-        "session_id": payload.session_id,
-        "current_query": payload.message.strip()
-    }
-
+    initial_input = {"session_id": payload.session_id, "current_query": payload.message.strip()}
     output_state = cdss_engine.invoke(initial_input, config)
-
     has_evidence = len(output_state.get("evidence_sources", [])) > 0
     gateway_status = "200_OK_RAG_CONTEXT" if has_evidence else "200_OK_NATIVE_LLM"
-
     audit_log = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S GMT", time.gmtime()),
         "session_id": payload.session_id,
@@ -268,7 +211,6 @@ async def chat_endpoint(payload: ChatRequest):
         "api_gateway_status": gateway_status
     }
     sys_logger.info(f"Audit log generated successfully for session {payload.session_id}")
-
     return {
         "session_id": output_state["session_id"],
         "clinical_guidance": output_state["raw_llm_output"],
@@ -280,31 +222,23 @@ async def chat_endpoint(payload: ChatRequest):
     }
 
 
-# ==========================================
-# 8. ADMINISTRATIVE INGESTION CONTROLLER (FAST BATCHED VERSION)
-# ==========================================
-
-
 ingest_status = {"running": False, "done": False, "count": 0, "error": None}
+
 
 def run_ingest():
     global collection, ingest_status
     ingest_status = {"running": True, "done": False, "count": 0, "error": None}
     try:
         chroma_client.delete_collection(name="langchain")
-    except:
+    except Exception:
         pass
-    collection = chroma_client.create_collection(
-        name="langchain", embedding_function=google_ef
-    )
+    collection = chroma_client.create_collection(name="langchain", embedding_function=google_ef)
     try:
         url = "https://api.fda.gov/drug/label.json?limit=50"
         with urllib.request.urlopen(url, timeout=30) as r:
             fda_data = json.loads(r.read().decode())
-
         records = fda_data.get("results", [])
         documents, ids = [], []
-
         for idx, drug in enumerate(records):
             openfda = drug.get("openfda", {})
             generic_names = openfda.get("generic_name", [])
@@ -317,23 +251,21 @@ def run_ingest():
             text_chunk = f"Drug: {generic_name} ({brand_name}) | Interactions: {interactions} | Contraindications: {contraindications}"
             documents.append(text_chunk)
             ids.append(f"fda_{idx}")
-
             if len(documents) == 10:
                 collection.add(documents=documents, ids=ids)
                 documents, ids = [], []
-
         if documents:
             collection.add(documents=documents, ids=ids)
-
         ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
-
     except Exception as e:
         ingest_status = {"running": False, "done": False, "count": 0, "error": str(e)}
+
 
 @app.post("/admin/ingest", dependencies=[Depends(validate_api_key)])
 async def admin_ingest(background_tasks: BackgroundTasks):
     background_tasks.add_task(run_ingest)
     return {"status": "ingestion_started", "message": "Running in background. Check /admin/status"}
+
 
 @app.get("/admin/status", dependencies=[Depends(validate_api_key)])
 async def ingest_status_check():
