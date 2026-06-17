@@ -192,6 +192,13 @@ workflow.add_edge("gemini_generation", "telemetry_parsing")
 workflow.add_edge("telemetry_parsing", END)
 cdss_engine = workflow.compile(checkpointer=MemorySaver())
 
+@app.on_event("startup")
+async def startup_ingest():
+    import threading
+    thread = threading.Thread(target=run_ingest)
+    thread.daemon = True
+    thread.start()
+
 
 @app.post("/chat", dependencies=[Depends(validate_api_key)])
 async def chat_endpoint(payload: ChatRequest):
