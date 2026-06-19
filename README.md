@@ -1,55 +1,42 @@
-# Pharmacist CDSS: AI-Powered Clinical Decision Support System
+# Pharmacist CDSS — AI-Powered Clinical Decision Support System
 
-Pharmacist CDSS is a production-oriented Clinical Decision Support System (CDSS) that assists pharmacists and healthcare professionals with medication safety checks, pharmaceutical information retrieval, and evidence-informed clinical decision support.
+A production-deployed Clinical Decision Support System that assists pharmacists and healthcare professionals with drug interaction checks, medication safety assessment, and evidence-grounded clinical guidance.
 
-The platform combines Retrieval-Augmented Generation (RAG), Large Language Models (LLMs), semantic search, and rule-based safety mechanisms to provide contextual pharmaceutical guidance during clinical consultations.
-
-Unlike traditional chatbots, the system integrates a structured retrieval pipeline with a vector database of pharmaceutical references, enabling responses to be grounded in retrieved medical knowledge rather than relying solely on LLM-generated content.
-
-The project demonstrates modern AI Engineering practices including API-first development, retrieval systems, vector databases, containerization, CI/CD foundations, modular service architecture, and scalable deployment workflows.
-
+The system combines a **LangGraph 3-node RAG pipeline**, **ChromaDB vector database**, and **Gemini 2.5 Flash LLM** to retrieve real FDA drug records and generate structured clinical responses — with live risk assessment, emotion detection, and full audit logging.
 ---
 
 ## Key Features
 
 ### Clinical Decision Support
-
-* Medication information assistance
-* Drug safety guidance
-* Context-aware pharmaceutical recommendations
-* Structured consultation responses
+* Drug interaction safety checks
+* Medication side effect guidance
+* Patient symptom triage with severity scoring (LOW/MODERATE/HIGH)
+* Structured clinical responses with follow-up recommendations
 
 ### Retrieval-Augmented Generation (RAG)
+* Semantic search via Gemini Embeddings
+* ChromaDB vector database with FDA drug records
+* Evidence-grounded responses with source attribution
+* Auto-ingestion from openFDA API on every startup
 
-* Semantic retrieval using embeddings
-* ChromaDB vector database
-* Evidence-grounded response generation
-* Context injection into LLM prompts
+### LangGraph AI Orchestration
+* 3-node pipeline: Triage → RAG → Generation → Telemetry
+* Clinical keyword detection and drug name extraction
+* Multi-stage prompt construction with retrieved context
+* Session-based memory with MemorySaver
 
-### LLM-Powered Reasoning
+### Live Telemetry Dashboard
+* Real-time clinical risk badge (LOW/MODERATE/HIGH)
+* Confidence score per response
+* Patient emotion state detection
+* Full audit trail per query
 
-* Gemini-powered response generation
-* Context-aware clinical guidance
-* Multi-stage prompt orchestration
-* Safety-focused response construction
-
-### AI Engineering Infrastructure
-
-* FastAPI backend services
-* Docker containerization
-* Environment-based configuration
-* Modular service architecture
+### Production Infrastructure
+* FastAPI backend with API key security
+* Docker containerized deployment
+* Azure Container Apps cloud hosting
 * GitHub Actions CI/CD pipeline
-
-### Production-Oriented Design
-
-* API-first architecture
-* Retrieval pipelines
-* Scalable deployment strategy
-* Structured validation layer
-* Extensible knowledge base architecture
-
----
+* Custom HTML/JS frontend served from same container
 
 ## Project Goal
 
@@ -322,32 +309,21 @@ http://localhost:8000/docs
 
 ---
 
-## 🎯 Learning Objectives
+## 🎯 What This Project Demonstrates
 
-This project is designed to demonstrate practical AI Engineering concepts:
-
-* LLM Integration
-* Retrieval-Augmented Generation (RAG)
-* Vector Databases
-* API Engineering
-* AI System Design
-* Containerization
-* CI/CD
-* MLOps & LLMOps Foundations
-* Production-Oriented AI Development.
-
-## Production Features
-
-- FastAPI REST API
-- Pydantic Request Validation
-- Cloud-Native Deployment (Azure Container Apps)
-- ChromaDB Vector Store
-- Gemini LLM Integration
-- Structured Logging
-- Environment-Based Configuration
-- CI/CD Foundations
-- Modular Service Architecture
-- Retrieval-Augmented Generation (RAG)
+| AI Engineering Concept | Implementation |
+|---|---|
+| LLM Integration | Gemini 2.5 Flash via google-genai SDK |
+| Retrieval-Augmented Generation | ChromaDB + Gemini Embeddings + openFDA API |
+| AI Orchestration | LangGraph 3-node pipeline |
+| Vector Database | ChromaDB PersistentClient |
+| API Engineering | FastAPI + Pydantic validation |
+| Containerization | Docker + Azure Container Registry |
+| CI/CD | GitHub Actions automated deployment |
+| Cloud Deployment | Azure Container Apps |
+| MLOps | Auto-ingestion on startup + audit logging |
+| Security | API Key middleware |
+| Frontend Integration | Custom HTML/JS served from FastAPI |
 
 
 
