@@ -186,24 +186,39 @@ README.md
 7. Structured clinical response returned with full audit trail
 ---
 
-## 🔄 Knowledge Update Pipeline (Planned)
+## 🔄 Knowledge Ingestion Pipeline
 
 ```text
-Medical Documents
-       │
-       ▼
-Document Processing
-       │
-       ▼
-Chunking
-       │
-       ▼
-Embeddings
-       │
-       ▼
-ChromaDB
-       │
-       ▼
+openFDA API
+
+│
+
+▼
+
+Auto-ingest on Startup
+
+│
+
+▼
+
+Text Chunking (drug name + interactions + contraindications)
+
+│
+
+▼
+
+Gemini Embedding (models/gemini-embedding-001)
+
+│
+
+▼
+
+ChromaDB Vector Store
+
+│
+
+▼
+
 RAG Retrieval Layer
 ```
 
@@ -215,6 +230,13 @@ Future versions will support:
 * Knowledge base updates
 * Continuous RAG refresh
 
+**Currently:** Auto-ingests FDA drug records on every container startup via background task.
+
+**Future enhancements:**
+* PDF ingestion from hospital formularies
+* Scheduled knowledge base updates
+* Full FDA database ingestion (13 files, 500k+ records)
+* Custom drug formulary support
 ---
 
 ## ☁️ Planned Production Architecture
