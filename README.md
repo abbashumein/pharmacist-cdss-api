@@ -75,7 +75,6 @@ The current repository contains the core backend architecture and AI workflow.
 
 #### Clinical Safety Classification
 
-* Fine-tuned DistilBERT model
 * Local PyTorch inference pipeline
 * Consultation intent and risk categorization
 
@@ -109,6 +108,7 @@ The current repository contains the core backend architecture and AI workflow.
 * Continuous integration pipeline
 
 ---
+---text
 ## 🏗️ System Architecture
 
 User Query (Frontend UI)
@@ -134,6 +134,7 @@ Node      Vector DB
         │
         ▼
   Structured Clinical Response
+  
 ```
 
 ---
@@ -185,7 +186,7 @@ README.md
 
 ---
 
-## 🔄 Knowledge Update Pipeline (Planned)
+## 🔄 Knowledge Pipeline 
 
 ```text
 Medical Documents
@@ -295,43 +296,34 @@ http://localhost:8000/docs
 
 ---
 
-## 🎯 Learning Objectives
+## 🎯 What This Project Demonstrates
 
-This project is designed to demonstrate practical AI Engineering concepts:
-
-* LLM Integration
-* Retrieval-Augmented Generation (RAG)
-* Vector Databases
-* API Engineering
-* AI System Design
-* Containerization
-* CI/CD
-* MLOps & LLMOps Foundations
-* Production-Oriented AI Development.
-
-## Production Features
-
-- FastAPI REST API
-- Pydantic Request Validation
-- Cloud-Native Deployment (Azure Container Apps)
-- ChromaDB Vector Store
-- Gemini LLM Integration
-- Structured Logging
-- Environment-Based Configuration
-- CI/CD Foundations
-- Modular Service Architecture
-- Retrieval-Augmented Generation (RAG)
-
+| AI Engineering Concept | Implementation |
+|---|---|
+| LLM Integration | Gemini 2.5 Flash via google-genai SDK |
+| Retrieval-Augmented Generation | ChromaDB + Gemini Embeddings + openFDA API |
+| AI Orchestration | LangGraph 3-node pipeline |
+| Vector Database | ChromaDB PersistentClient |
+| API Engineering | FastAPI + Pydantic validation |
+| Containerization | Docker + Azure Container Registry |
+| CI/CD | GitHub Actions automated deployment |
+| Cloud Deployment | Azure Container Apps |
+| MLOps | Auto-ingestion on startup + audit logging |
+| Security | API Key middleware |
+| Frontend Integration | Custom HTML/JS served from FastAPI |
 
 
 
 ## 📸 System in Action
 
 ### Clinical AI Interface
-![Home Screen](screenshots/Home_Screen.png)
+![Home Screen](screenshots/home.png)
 
 ### Drug Interaction Detection — HIGH Risk Triggered
-![High Risk Response](screenshots/prompt1_response.png)
+![Prompt 1 Response](screenshots/prompt_1_response.png)
+
+### Drug Interaction Detection — HIGH Risk Triggered
+![Prompt 2 Response](screenshots/prompt_2_response.png)
 
 ### RAG Evidence Sources + Audit Trail
 ![Telemetry Panel](screenshots/telemetry.png)
