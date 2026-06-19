@@ -88,36 +88,38 @@ The system is fully built and deployed. All components are live and functional.
 * GitHub Actions CI/CD pipeline
 * Auto-deploy on every git push
 
-
 ---
-
 ## 🏗️ System Architecture
 
 ```text
-User Interface
-      │
-      ▼
-FastAPI API Layer
-      │
-      ▼
-Routing & Request Validation
-      │
- ┌────┴────┐
- ▼         ▼
-ML Service  RAG Service
- │           │
- ▼           ▼
-DistilBERT   ChromaDB
- │           │
- └────┬──────┘
-      ▼
- Gemini Service
-      │
-      ▼
- Safety Layer
-      │
-      ▼
- Structured Clinical Guidance
+User Query (Frontend UI)
+        │
+        ▼
+FastAPI API Gateway
+(API Key Security + Pydantic Validation)
+        │
+        ▼
+LangGraph Pipeline
+        │
+   ┌────┴──────────┐
+   ▼               ▼
+Triage Node     ChromaDB
+(keyword +      Vector DB
+drug detection) (FDA Records)
+   │               │
+   └────┬──────────┘
+        ▼
+Generation Node
+(Gemini 2.5 Flash +
+Retrieved FDA Context)
+        │
+        ▼
+Telemetry Node
+(Risk + Confidence + Emotion)
+        │
+        ▼
+Structured Clinical Response
++ Full Audit Trail
 ```
 
 ---
@@ -127,29 +129,25 @@ DistilBERT   ChromaDB
 ```text
 app/
 │
-├── main.py
+├── main_demo.py          # FastAPI app + LangGraph pipeline
 │
-├── services/
-│   ├── ml_service.py
-│   ├── rag_service.py
-│   └── gemini_service.py
-│
-├── models/
-├── utils/
-├── core/
-│
-├── data/
-├── vectorstore/
-│
-└── tests/
+└── utils/
+    └── logger.py         # Structured logging
+
+static/
+└── index.html            # Frontend UI
+
+screenshots/              # Testing proof screenshots
 
 .github/
 └── workflows/
+    └── deploy.yml        # GitHub Actions CI/CD
 
-Dockerfile
-requirements.txt
+Dockerfile                # Container build
+requirements.txt          # Python dependencies
 README.md
 ```
+
 
 ---
 
