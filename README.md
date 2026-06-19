@@ -174,18 +174,16 @@ README.md
 
 ## 🧠 AI Workflow
 
-1. Pharmacist submits medication-related query
-2. FastAPI validates incoming data.
-3. DistilBERT performs local severity analysis.
-4. ChromaDB retrieves relevant pharmaceutical references.
-5. Gemini receives:
-
-   * Patient information
-   * Severity indicators
-   * Retrieved context
-6. Safety rules are applied.
-7. Structured guidance is returned.
-
+1. Pharmacist submits query via frontend UI
+2. FastAPI validates and routes the request
+3. **Triage Node** — detects clinical keywords, identifies drug names
+4. **RAG Node** — ChromaDB semantic search retrieves relevant FDA drug records
+5. **Generation Node** — Gemini 2.5 Flash receives:
+   * Retrieved FDA context
+   * Patient medication profile
+   * Clinical triage signals
+6. **Telemetry Node** — extracts risk level, confidence score, emotion state
+7. Structured clinical response returned with full audit trail
 ---
 
 ## 🔄 Knowledge Update Pipeline (Planned)
