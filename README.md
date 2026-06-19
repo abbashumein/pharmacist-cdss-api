@@ -250,35 +250,6 @@ Future versions will support:
 * Prompt versioning
 * Quality monitoring
 ---
-
-## 🛠️ Installation
-
-### Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### Configure Environment Variables
-
-Create a `.env` file:
-
-```env
-GEMINI_API_KEY=your_gemini_api_key
-```
-
-### Run Locally
-
-```bash
-uvicorn app.main_demo:app --host 0.0.0.0 --port 8000 --reload
-```
-
-API documentation:
-
-```text
-http://localhost:8000/docs
-```
-
 ---
 
 ## 📦 Technologies Used
