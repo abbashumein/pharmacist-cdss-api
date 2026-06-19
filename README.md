@@ -40,60 +40,54 @@ The system combines a **LangGraph 3-node RAG pipeline**, **ChromaDB vector datab
 
 ## Project Goal
 
-The objective of this project is to demonstrate how modern AI systems can combine retrieval mechanisms, vector databases, LLM reasoning, and backend engineering to support healthcare workflows in a safe and scalable manner.
+To demonstrate how modern AI engineering combines RAG pipelines, vector databases, LLM reasoning, and cloud infrastructure to build a deployable, production-ready clinical decision support application.
 
-The repository focuses on practical AI Engineering concepts rather than standalone model training, showcasing how multiple AI components can be orchestrated into a deployable decision-support application.
-
+This project focuses on **practical AI system building** — not standalone model training — showing how multiple AI components can be orchestrated into a real deployed product.
 
 ---
 
 ## 🚀 Current Implementation
 
-The current repository contains the core backend architecture and AI workflow.
+The system is fully built and deployed. All components are live and functional.
 
 ### Core Components
 
-#### FastAPI API Gateway
-
+**FastAPI API Gateway**
 * Asynchronous API endpoints
-* Request validation using Pydantic
-* Structured request/response handling
-* RESTful architecture
+* Pydantic request validation
+* API key security middleware
+* RESTful architecture with Swagger docs
 
-#### Clinical Safety Classification
+**LangGraph Orchestration Pipeline**
+* 3-node workflow: Triage → Generation → Telemetry
+* Clinical keyword and drug name detection
+* Session memory with MemorySaver
+* Conditional evidence retrieval
 
-* Fine-tuned DistilBERT model
-* Local PyTorch inference pipeline
-* Consultation intent and risk categorization
-
-#### Retrieval-Augmented Generation (RAG)
-
-* LangChain integration
+**Retrieval-Augmented Generation (RAG)**
 * ChromaDB vector storage
+* Gemini Embedding (models/gemini-embedding-001)
 * Semantic similarity search
-* Retrieval of relevant clinical references
+* openFDA API auto-ingestion on startup
 
-#### LLM Orchestration Layer
+**Gemini 2.5 Flash LLM**
+* Context-aware clinical prompt construction
+* Retrieved FDA context injection
+* Structured response format enforcement
+* Safety disclaimer enforcement
 
-* Gemini API integration
-* Context-aware prompt construction
-* Combination of:
+**Frontend UI**
+* Custom HTML/CSS/JS chat interface
+* Live telemetry panel (risk, confidence, emotion)
+* Real-time audit trail display
+* Served directly from FastAPI
 
-  * ML predictions
-  * Retrieved medical references
-  * User-provided information
+**Containerization & Deployment**
+* Dockerized with Azure Container Registry
+* Azure Container Apps hosting
+* GitHub Actions CI/CD pipeline
+* Auto-deploy on every git push
 
-#### Containerization
-
-* Dockerized deployment
-* Reproducible runtime environment
-* Environment-based configuration
-
-#### CI/CD Foundations
-
-* GitHub Actions workflow
-* Automated build validation
-* Continuous integration pipeline
 
 ---
 
