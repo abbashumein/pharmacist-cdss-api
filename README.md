@@ -41,19 +41,19 @@ The system combines a **LangGraph 3-node RAG pipeline**, **ChromaDB vector datab
 ## 📸 System in Action
 
 **Clinical AI Interface — Ready State**
-![Home Screen](screenshots/home.png)
+![Home Screen](screenshots/home.PNG)
 
 **Drug Interaction Query — HIGH Risk Triggered**
-![Prompt 1 Response](screenshots/prompt_1_response.png)
+![Prompt 1 Response](screenshots/prompt_1_response.PNG)
 
 **Patient Symptom Triage — Clinical Summary Generated**
-![Prompt 2 Response](screenshots/prompt_2_response.png)
+![Prompt 2 Response](screenshots/prompt_2%20_response.PNG)
 
 **Live Telemetry — RAG Evidence Sources + Audit Trail**
-![Telemetry Panel](screenshots/telemetry.png)
+![Telemetry Panel](screenshots/telemetry.PNG)
 
 **API Documentation — Swagger UI**
-![Swagger Docs](screenshots/swagger.png)
+![Swagger Docs](screenshots/swagger.PNG)
 
 ## Project Goal
 
