@@ -109,34 +109,31 @@ The current repository contains the core backend architecture and AI workflow.
 * Continuous integration pipeline
 
 ---
-
 ## 🏗️ System Architecture
 
-```text
-User Interface
-      │
-      ▼
-FastAPI API Layer
-      │
-      ▼
-Routing & Request Validation
-      │
- ┌────┴────┐
- ▼         ▼
-ML Service  RAG Service
- │           │
- ▼           ▼
-DistilBERT   ChromaDB
- │           │
- └────┬──────┘
-      ▼
- Gemini Service
-      │
-      ▼
- Safety Layer
-      │
-      ▼
- Structured Clinical Guidance
+User Query (Frontend UI)
+        │
+        ▼
+FastAPI API Gateway (Azure Container Apps)
+        │
+        ▼
+LangGraph 3-Node Pipeline
+        │
+   ┌────┴────┐
+   ▼         ▼
+Triage    ChromaDB
+Node      Vector DB
+   │      (FDA Records)
+   └────┬──────┘
+        ▼
+  Gemini 2.5 Flash
+        │
+        ▼
+  Telemetry Node
+  (Risk + Emotion + Confidence)
+        │
+        ▼
+  Structured Clinical Response
 ```
 
 ---
@@ -219,32 +216,33 @@ Future versions will support:
 
 ---
 
-## ☁️ Planned Production Architecture
+## ☁️ Production Infrastructure
 
-The project is being designed toward a scalable cloud-native architecture.
+| Component | Technology |
+|---|---|
+| Backend API | FastAPI + Uvicorn |
+| AI Orchestration | LangGraph 3-node pipeline |
+| Vector Database | ChromaDB + Gemini Embeddings |
+| LLM | Gemini 2.5 Flash |
+| Containerization | Docker |
+| Cloud Hosting | Azure Container Apps |
+| CI/CD | GitHub Actions |
+| Frontend | Custom HTML/JS (served via FastAPI) |
+| Security | API Key middleware |
+| Monitoring | Structured audit logging |
 
-Future enhancements include:
-
-### Infrastructure
-
-* AWS ECS/Fargate deployment
-* Container orchestration
-* Auto-scaling services
+## 🔮 Future Enhancements
 
 ### Data Pipelines
-
 * Scheduled document ingestion
 * Automated vector database updates
 
 ### Observability
-
-* Structured logging
 * Request tracing
 * Latency monitoring
 * Error analytics
 
 ### LLMOps
-
 * Response evaluation
 * Prompt versioning
 * Quality monitoring
@@ -326,8 +324,24 @@ This project is designed to demonstrate practical AI Engineering concepts:
 
 
 
+
+## 📸 System in Action
+
+### Clinical AI Interface
+![Home Screen](screenshots/Home_Screen.png)
+
+### Drug Interaction Detection — HIGH Risk Triggered
+![High Risk Response](screenshots/prompt1_response.png)
+
+### RAG Evidence Sources + Audit Trail
+![Telemetry Panel](screenshots/telemetry.png)
+
+### API Documentation
+![Swagger Docs](screenshots/swagger.png)
+
 ### 🔬 Research & Development
 
 The exploratory data analysis, severity classification modeling, and initial workflow prototyping for this clinical support tool were developed in Google Colab. You can view and run the experimental notebook directly via the link below:
+
 
 * [Launch Active Colab Notebook](https://colab.research.google.com/drive/1KwWJRlIynOMbfM8f3zcUym4lCNytyoj8#scrollTo=MUOtHKZA2L7n)
