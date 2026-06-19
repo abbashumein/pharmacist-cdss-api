@@ -239,36 +239,37 @@ Future versions will support:
 * Custom drug formulary support
 ---
 
-## ☁️ Planned Production Architecture
+## ☁️ Production Infrastructure
 
-The project is being designed toward a scalable cloud-native architecture.
+| Component | Technology |
+|---|---|
+| Backend API | FastAPI + Uvicorn |
+| AI Orchestration | LangGraph 3-node pipeline |
+| Vector Database | ChromaDB + Gemini Embeddings |
+| LLM | Gemini 2.5 Flash |
+| Containerization | Docker |
+| Cloud Hosting | Azure Container Apps |
+| CI/CD | GitHub Actions |
+| Frontend | Custom HTML/JS served via FastAPI |
+| Security | API Key middleware |
+| Monitoring | Structured audit logging |
 
-Future enhancements include:
-
-### Infrastructure
-
-* AWS ECS/Fargate deployment
-* Container orchestration
-* Auto-scaling services
+## 🔮 Future Enhancements
 
 ### Data Pipelines
-
 * Scheduled document ingestion
 * Automated vector database updates
+* Full FDA database (500k+ records)
 
 ### Observability
-
-* Structured logging
 * Request tracing
 * Latency monitoring
 * Error analytics
 
 ### LLMOps
-
 * Response evaluation
 * Prompt versioning
 * Quality monitoring
-
 ---
 
 ## 🛠️ Installation
@@ -303,17 +304,21 @@ http://localhost:8000/docs
 
 ## 📦 Technologies Used
 
-* Python
-* FastAPI
-* PyTorch
-* DistilBERT
-* LangGraph
-* LangChain
-* ChromaDB
-* Gemini API
-* GitHub Actions
-* Pydantic
-* Uvicorn
+| Category | Technology |
+|---|---|
+| Language | Python 3.11 |
+| API Framework | FastAPI + Uvicorn |
+| AI Orchestration | LangGraph |
+| LLM | Gemini 2.5 Flash (google-genai SDK) |
+| Embeddings | Gemini Embedding (models/gemini-embedding-001) |
+| Vector Database | ChromaDB |
+| Data Validation | Pydantic |
+| Containerization | Docker |
+| Cloud Platform | Azure Container Apps |
+| Container Registry | Azure Container Registry |
+| CI/CD | GitHub Actions |
+| Data Source | openFDA API |
+| Frontend | HTML + CSS + JavaScript |
 
 ---
 
