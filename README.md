@@ -38,6 +38,23 @@ The system combines a **LangGraph 3-node RAG pipeline**, **ChromaDB vector datab
 * GitHub Actions CI/CD pipeline
 * Custom HTML/JS frontend served from same container
 
+## 📸 System in Action
+
+**Clinical AI Interface — Ready State**
+![Home Screen](screenshots/home.png)
+
+**Drug Interaction Query — HIGH Risk Triggered**
+![Prompt 1 Response](screenshots/prompt_1_response.png)
+
+**Patient Symptom Triage — Clinical Summary Generated**
+![Prompt 2 Response](screenshots/prompt_2_response.png)
+
+**Live Telemetry — RAG Evidence Sources + Audit Trail**
+![Telemetry Panel](screenshots/telemetry.png)
+
+**API Documentation — Swagger UI**
+![Swagger Docs](screenshots/swagger.png)
+
 ## Project Goal
 
 To demonstrate how modern AI engineering combines RAG pipelines, vector databases, LLM reasoning, and cloud infrastructure to build a deployable, production-ready clinical decision support application.
