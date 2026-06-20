@@ -306,6 +306,16 @@ Future versions will support:
 | Frontend Integration | Custom HTML/JS served from FastAPI |
 
 
+## 🔧 Engineering Challenges & Solutions
+
+| Problem | Root Cause | Fix |
+|---|---|---|
+| Container OOM crash | ChromaDB + Gemini loading 3GB+ RAM | Switched to cloud Gemini embeddings, removed local ONNX |
+| 503 timeout on ingest | 130MB ZIP upload exhausting proxy timeout | Replaced file upload with direct openFDA API + background tasks |
+| GeminiEmbeddingFunction not found | ChromaDB 0.5.3 naming change | Wrote custom EmbeddingFunction class using google-genai SDK |
+| Static files not in container | Dockerfile missing COPY ./static | Added COPY ./static /code/static to Dockerfile |
+
+
 
 ### 🔬 Research & Development
 
