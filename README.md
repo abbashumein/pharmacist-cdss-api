@@ -306,14 +306,25 @@ Future versions will support:
 | Frontend Integration | Custom HTML/JS served from FastAPI |
 
 
+## 📊 Performance Metrics
+
+| Metric | Value |
+|---|---|
+| RAG Retrieval Accuracy | 100% (10/10 eval queries) |
+| p95 Latency | ~16s (Gemini 2.5 Flash, free tier Azure) |
+| Cost per Request | ~$0.0008 |
+| Records in ChromaDB | 19 FDA drug labels |
+| Evaluation Script | `eval.py` — automated RAG hit rate testing |
+
 ## 🔧 Engineering Challenges & Solutions
 
 | Problem | Root Cause | Fix |
 |---|---|---|
-| Container OOM crash | ChromaDB + Gemini loading 3GB+ RAM | Switched to cloud Gemini embeddings, removed local ONNX |
-| 503 timeout on ingest | 130MB ZIP upload exhausting proxy timeout | Replaced file upload with direct openFDA API + background tasks |
-| GeminiEmbeddingFunction not found | ChromaDB 0.5.3 naming change | Wrote custom EmbeddingFunction class using google-genai SDK |
-| Static files not in container | Dockerfile missing COPY ./static | Added COPY ./static /code/static to Dockerfile |
+| Container OOM crash | ChromaDB + ONNX loading 3GB+ RAM on startup | Switched to cloud Gemini embeddings, removed local ONNX runtime entirely |
+| 503 timeout on ingest | 130MB ZIP upload exhausting Azure proxy timeout | Replaced file upload with direct openFDA API + FastAPI BackgroundTasks |
+| GeminiEmbeddingFunction not found | ChromaDB 0.5.3 naming convention change | Wrote custom `GeminiEmbeddingFunction(EmbeddingFunction)` class using google-genai SDK |
+| Static files missing in container | Dockerfile missing `COPY ./static` line | Added `COPY ./static /code/static` to Dockerfile |
+| Git push conflicts | CI/CD auto-commits diverging from local branch | Used `git pull --rebase` + force push to resolve |
 
 
 
