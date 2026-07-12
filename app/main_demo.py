@@ -23,7 +23,9 @@ api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
 
 
 def validate_api_key(api_key: str = Security(api_key_header)):
-    expected_key = os.getenv("CDSS_API_KEY", "prod-secret-fallback-key")
+    expected_key = os.getenv("CDSS_API_KEY")
+    if not expected_key:
+        raise RuntimeError("CDSS_API_KEY environment variable must be set — no fallback allowed.")
     if not api_key or str(api_key).strip() != expected_key:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
