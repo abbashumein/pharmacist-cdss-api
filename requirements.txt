@@ -2,10 +2,13 @@ fastapi==0.110.3
 uvicorn==0.28.0
 pydantic==2.9.2
 numpy==1.26.4
-chromadb==0.5.3
+chromadb==0.5.4
 google-genai==1.0.0
 loguru==0.7.2
 langgraph==0.2.34
 langchain-core==0.2.43
-langchain-chroma==0.1.4
+# NOTE: install langchain-chroma separately with --no-deps due to a
+# metadata version conflict with chromadb 0.5.4 that doesn't affect
+# actual runtime compatibility:
+#   pip install langchain-chroma==0.1.4 --no-deps
 python-multipart
