@@ -16,6 +16,9 @@ env/
 # Heavy Data & Model Weights
 weights/
 chroma_storage/
+chroma_db/
+chroma_db_debug/
+chroma_db_old_backup/
 *.zip
 *.tar.gz
 *.json
@@ -26,3 +29,7 @@ __pycache__/
 *.pyo
 *.pyd
 .pytest_cache/
+# Debug/error artifacts
+ingest_error.log
+debug_ingest.py
+mintty.*.png

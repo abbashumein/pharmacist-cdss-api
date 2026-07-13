@@ -17,6 +17,8 @@ import chromadb
 from chromadb import EmbeddingFunction, Documents, Embeddings
 
 from app.utils.logger import sys_logger
+from dotenv import load_dotenv
+load_dotenv(override=True)
 
 API_KEY_NAME = "X-API-KEY"
 api_key_header = APIKeyHeader(name=API_KEY_NAME, auto_error=False)
@@ -114,7 +116,8 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         if found_drugs:
             search_query = " ".join(found_drugs)
 
-        db_results = collection.query(query_texts=[search_query], n_results=2)
+        db_results = collection.query(query_texts=[search_query], n_results=2, include=["documents", "distances"])
+        print(f"DEBUG distances for '{search_query}': {db_results.get('distances')}")
 
         if db_results and db_results.get('documents') and len(db_results['documents'][0]) > 0:
             retrieved = db_results['documents'][0]
@@ -231,9 +234,6 @@ async def chat_endpoint(payload: ChatRequest):
     }
 
 
-ingest_status = {"running": False, "done": False, "count": 0, "error": None}
-
-
 def run_ingest():
     global collection, ingest_status
     ingest_status = {"running": True, "done": False, "count": 0, "error": None}
@@ -243,10 +243,28 @@ def run_ingest():
         pass
     collection = chroma_client.create_collection(name="langchain", embedding_function=google_ef)
     try:
-        url = "https://api.fda.gov/drug/label.json?limit=50"
-        with urllib.request.urlopen(url, timeout=30) as r:
-            fda_data = json.loads(r.read().decode())
-        records = fda_data.get("results", [])
+        # Fetch our core tested drugs explicitly, so they're guaranteed
+        # to be in the corpus every time (not left to random API ordering).
+        target_drugs = ["warfarin", "aspirin", "ibuprofen", "amiodarone"]
+        records = []
+        for drug_name in target_drugs:
+            url = f"https://api.fda.gov/drug/label.json?search=openfda.generic_name:{drug_name}&limit=5"
+            try:
+                with urllib.request.urlopen(url, timeout=30) as r:
+                    data = json.loads(r.read().decode())
+                records.extend(data.get("results", []))
+            except Exception as fetch_err:
+                sys_logger.error(f"Failed to fetch {drug_name}: {fetch_err}")
+
+        # Also pull a general batch for broader corpus coverage.
+        try:
+            url = "https://api.fda.gov/drug/label.json?limit=50"
+            with urllib.request.urlopen(url, timeout=30) as r:
+                fda_data = json.loads(r.read().decode())
+            records.extend(fda_data.get("results", []))
+        except Exception as fetch_err:
+            sys_logger.error(f"Failed to fetch general batch: {fetch_err}")
+
         documents, ids = [], []
         for idx, drug in enumerate(records):
             openfda = drug.get("openfda", {})
@@ -267,6 +285,10 @@ def run_ingest():
             collection.add(documents=documents, ids=ids)
         ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        with open("ingest_error.log", "w") as f:
+            f.write(tb)
         ingest_status = {"running": False, "done": False, "count": 0, "error": str(e)}
 
 
