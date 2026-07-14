@@ -306,15 +306,22 @@ Future versions will support:
 | Frontend Integration | Custom HTML/JS served from FastAPI |
 
 
-## 📊 Performance Metrics
+## Performance Metrics
 
 | Metric | Value |
 |---|---|
-| RAG Retrieval Accuracy | 100% (10/10 eval queries) |
-| p95 Latency | ~16s (Gemini 2.5 Flash, free tier Azure) |
+| Direct Lookup Accuracy | 90% (9/10 across 2 eval runs) |
+| Drug Interaction Accuracy | 63% (5/8 across 2 eval runs) |
+| Contraindication Accuracy | 100% (8/8 across 2 eval runs) |
+| **Core Retrieval Accuracy (combined)** | **85% (22/26 across 2 eval runs)** |
+| p95 Latency | ~5-8s (Gemini 2.5 Flash) |
 | Cost per Request | ~$0.0008 |
-| Records in ChromaDB | 19 FDA drug labels |
-| Evaluation Script | `eval.py` — automated RAG hit rate testing |
+| Records in ChromaDB | 19 FDA drug labels (target drugs guaranteed via explicit fetch) |
+| Evaluation Script | `eval.py` — categorized eval across direct lookup, interaction, contraindication, ambiguous, and out-of-scope queries |
+
+**Known limitations:**
+- Retrieval currently has no similarity/distance threshold, so out-of-scope queries (e.g. "what's the weather") may still return nearest-neighbor drug chunks as if relevant. Planned fix: reject retrieval results below a cosine similarity cutoff.
+- Multi-drug interaction queries (e.g. "warfarin and aspirin") are joined into a single search string before retrieval, which occasionally favors one drug's chunk over the other. This accounts for most interaction-category misses.
 
 ## 🔧 Engineering Challenges & Solutions
 
@@ -325,6 +332,11 @@ Future versions will support:
 | GeminiEmbeddingFunction not found | ChromaDB 0.5.3 naming convention change | Wrote custom `GeminiEmbeddingFunction(EmbeddingFunction)` class using google-genai SDK |
 | Static files missing in container | Dockerfile missing `COPY ./static` line | Added `COPY ./static /code/static` to Dockerfile |
 | Git push conflicts | CI/CD auto-commits diverging from local branch | Used `git pull --rebase` + force push to resolve |
+| Hardcoded API key fallback in auth logic | `os.getenv("CDSS_API_KEY", "prod-secret-fallback-key")` — silent fallback to a public, committed string if env var unset | Removed fallback; auth now fails loudly at startup via `RuntimeError` if `CDSS_API_KEY` is missing |
+| Eval script reported false 100% accuracy | Hit detection checked only HTTP gateway status, never verified the correct drug was actually retrieved | Rewrote eval to check expected drug term presence in retrieved evidence, added 5-category breakdown (direct lookup, interaction, contraindication, ambiguous, out-of-scope) |
+| Ingested drugs didn't match tested drugs | openFDA ingestion pulled a random top-50 batch with no guarantee target drugs (warfarin, aspirin, etc.) were included | Added explicit per-drug openFDA fetch before the general batch, guaranteeing core test drugs are always in the corpus |
+| Corrupted API key at runtime | Manual shell `export` left a stale, multi-line-corrupted value in the terminal session; `load_dotenv()` doesn't override existing env vars by default | Switched to `load_dotenv(override=True)` so `.env` always takes priority over stray shell state |
+| Windows local dev blocked by native build | `chroma-hnswlib==0.7.3` (via `chromadb==0.5.3`) has no prebuilt Windows wheel for Python 3.12, requires MSVC compiler | Upgraded to `chromadb==0.5.4` (prebuilt wheel available), decoupled `langchain-chroma` install with `--no-deps` to resolve a metadata-only version conflict |
 
 
 
