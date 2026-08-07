@@ -119,11 +119,16 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         db_results = collection.query(query_texts=[search_query], n_results=2, include=["documents", "distances"])
         print(f"DEBUG distances for '{search_query}': {db_results.get('distances')}")
 
-        if db_results and db_results.get('documents') and len(db_results['documents'][0]) > 0:
-            retrieved = db_results['documents'][0]
+        distances = db_results.get('distances', [[]])[0]
+        documents = db_results.get('documents', [[]])[0]
+
+        SIMILARITY_THRESHOLD = 0.8
+
+        if documents and distances and min(distances) < SIMILARITY_THRESHOLD:
+            retrieved = documents
             evidence = [f"ChromaDB Guidelines Chunk: {r[:120]}..." for r in retrieved]
         else:
-            retrieved = ["No matching guidelines found in database."]
+            retrieved = ["No sufficiently relevant FDA evidence found for this query."]
             evidence = []
 
     except Exception as e:
