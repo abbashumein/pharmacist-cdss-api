@@ -250,7 +250,11 @@ def run_ingest():
     try:
         # Fetch our core tested drugs explicitly, so they're guaranteed
         # to be in the corpus every time (not left to random API ordering).
-        target_drugs = ["warfarin", "aspirin", "ibuprofen", "amiodarone"]
+        target_drugs = [
+            "warfarin", "aspirin", "ibuprofen", "amiodarone",
+            "metformin", "lisinopril", "atorvastatin", "omeprazole",
+            "amlodipine", "metoprolol", "levothyroxine", "albuterol"
+        ]
         records = []
         for drug_name in target_drugs:
             url = f"https://api.fda.gov/drug/label.json?search=openfda.generic_name:{drug_name}&limit=5"
@@ -275,13 +279,14 @@ def run_ingest():
             openfda = drug.get("openfda", {})
             generic_names = openfda.get("generic_name", [])
             if not generic_names:
+                print(f"DEBUG skipping record {idx} — no generic_name")
                 continue
             generic_name = generic_names[0]
             brand_name = openfda.get("brand_name", ["Generic"])[0]
-            interactions = drug.get("drug_interactions", ["None"])[0][:200]
-            contraindications = drug.get("contraindications", ["None"])[0][:200]
-            text_chunk = f"Drug: {generic_name} ({brand_name}) | Interactions: {interactions} | Contraindications: {contraindications}"
-            documents.append(text_chunk)
+            interactions = drug.get("drug_interactions", ["None"])[0][:150]
+            contraindications = drug.get("contraindications", ["None"])[0][:150]
+            side_effects = drug.get("adverse_reactions", ["None"])[0][:150]
+            text_chunk = f"Drug: {generic_name} ({brand_name}) | Interactions: {interactions} | Contraindications: {contraindications} | Side Effects: {side_effects}"
             ids.append(f"fda_{idx}")
             if len(documents) == 10:
                 collection.add(documents=documents, ids=ids)
