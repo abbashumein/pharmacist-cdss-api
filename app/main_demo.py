@@ -263,7 +263,7 @@ def run_ingest():
 
         # Also pull a general batch for broader corpus coverage.
         try:
-            url = "https://api.fda.gov/drug/label.json?limit=50"
+            url = "https://api.fda.gov/drug/label.json?limit=200"
             with urllib.request.urlopen(url, timeout=30) as r:
                 fda_data = json.loads(r.read().decode())
             records.extend(fda_data.get("results", []))
@@ -286,6 +286,7 @@ def run_ingest():
             if len(documents) == 10:
                 collection.add(documents=documents, ids=ids)
                 documents, ids = [], []
+                time.sleep(3)
         if documents:
             collection.add(documents=documents, ids=ids)
         ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
