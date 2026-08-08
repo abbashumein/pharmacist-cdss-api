@@ -250,22 +250,6 @@ Future versions will support:
 | Security | API Key middleware |
 | Monitoring | Structured audit logging |
 
-## 🔮 Future Enhancements
-
-### Data Pipelines
-* Scheduled document ingestion
-* Automated vector database updates
-* Full FDA database (500k+ records)
-
-### Observability
-* Request tracing
-* Latency monitoring
-* Error analytics
-
-### LLMOps
-* Response evaluation
-* Prompt versioning
-* Quality monitoring
 ---
 ---
 
@@ -320,8 +304,17 @@ Future versions will support:
 | Evaluation Script | `eval.py` — categorized eval across direct lookup, interaction, contraindication, ambiguous, and out-of-scope queries |
 
 **Known limitations:**
-- Retrieval currently has no similarity/distance threshold, so out-of-scope queries (e.g. "what's the weather") may still return nearest-neighbor drug chunks as if relevant. Planned fix: reject retrieval results below a cosine similarity cutoff.
-- Multi-drug interaction queries (e.g. "warfarin and aspirin") are joined into a single search string before retrieval, which occasionally favors one drug's chunk over the other. This accounts for most interaction-category misses.
+
+* ~~Retrieval currently has no similarity/distance threshold~~ — 
+**Fixed:** Cosine distance threshold (0.8) added in triage node. 
+Out-of-scope queries (e.g. "what's the weather") now correctly 
+return empty evidence instead of irrelevant drug chunks.
+
+* Multi-drug interaction queries (e.g. "warfarin and aspirin") 
+are joined into a single search string before retrieval, which 
+occasionally favors one drug's chunk over the other. This accounts 
+for most interaction-category misses. Planned fix: split multi-drug 
+queries and retrieve separately, then merge results.
 
 ## 🔧 Engineering Challenges & Solutions
 
@@ -337,6 +330,7 @@ Future versions will support:
 | Ingested drugs didn't match tested drugs | openFDA ingestion pulled a random top-50 batch with no guarantee target drugs (warfarin, aspirin, etc.) were included | Added explicit per-drug openFDA fetch before the general batch, guaranteeing core test drugs are always in the corpus |
 | Corrupted API key at runtime | Manual shell `export` left a stale, multi-line-corrupted value in the terminal session; `load_dotenv()` doesn't override existing env vars by default | Switched to `load_dotenv(override=True)` so `.env` always takes priority over stray shell state |
 | Windows local dev blocked by native build | `chroma-hnswlib==0.7.3` (via `chromadb==0.5.3`) has no prebuilt Windows wheel for Python 3.12, requires MSVC compiler | Upgraded to `chromadb==0.5.4` (prebuilt wheel available), decoupled `langchain-chroma` install with `--no-deps` to resolve a metadata-only version conflict |
+| Out-of-scope queries returning irrelevant chunks | No similarity threshold — ChromaDB always returned nearest neighbor even for unrelated queries | Added cosine distance threshold (0.8) in triage node — rejects chunks above threshold, returns 'No relevant FDA evidence found' |
 
 
 
