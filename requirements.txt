@@ -12,3 +12,5 @@ langchain-core==0.2.43
 # actual runtime compatibility:
 #   pip install langchain-chroma==0.1.4 --no-deps
 python-multipart
+sentence-transformers
+python-dotenv

@@ -15,7 +15,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from google import genai
 import chromadb
 from chromadb import EmbeddingFunction, Documents, Embeddings
-
+from sentence_transformers import SentenceTransformer
 from app.utils.logger import sys_logger
 from dotenv import load_dotenv
 load_dotenv(override=True)
@@ -36,17 +36,13 @@ def validate_api_key(api_key: str = Security(api_key_header)):
     return api_key
 
 
-class GeminiEmbeddingFunction(EmbeddingFunction):
-    def __init__(self, api_key: str, model_name: str = "models/gemini-embedding-001"):
-        self.client = genai.Client(api_key=api_key)
-        self.model_name = model_name
+class LocalEmbeddingFunction(EmbeddingFunction):
+    def __init__(self):
+        self.model = SentenceTransformer('all-MiniLM-L6-v2')
 
     def __call__(self, input: Documents) -> Embeddings:
-        result = self.client.models.embed_content(
-            model=self.model_name,
-            contents=input
-        )
-        return [e.values for e in result.embeddings]
+        embeddings = self.model.encode(input)
+        return embeddings.tolist()
 
 
 app = FastAPI(title="Pharmacist CDSS Enterprise API")
@@ -55,7 +51,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 gemini_api_key = os.getenv("GEMINI_API_KEY")
 ai_client = genai.Client(api_key=gemini_api_key)
-google_ef = GeminiEmbeddingFunction(api_key=gemini_api_key)
+google_ef = LocalEmbeddingFunction()
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma_client.get_or_create_collection(
     name="langchain",
@@ -114,7 +110,7 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         search_query = user_msg
         found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen"] if word in user_msg.lower()]
         if found_drugs:
-            search_query = " ".join(found_drugs)
+            search_query = user_msg
 
         db_results = collection.query(query_texts=[search_query], n_results=2, include=["documents", "distances"])
         print(f"DEBUG distances for '{search_query}': {db_results.get('distances')}")
@@ -122,7 +118,7 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         distances = db_results.get('distances', [[]])[0]
         documents = db_results.get('documents', [[]])[0]
 
-        SIMILARITY_THRESHOLD = 0.8
+        SIMILARITY_THRESHOLD = 0.95
 
         if documents and distances and min(distances) < SIMILARITY_THRESHOLD:
             retrieved = documents
@@ -267,7 +263,7 @@ def run_ingest():
 
         # Also pull a general batch for broader corpus coverage.
         try:
-            url = "https://api.fda.gov/drug/label.json?limit=200"
+            url = "https://api.fda.gov/drug/label.json?limit=1000"
             with urllib.request.urlopen(url, timeout=30) as r:
                 fda_data = json.loads(r.read().decode())
             records.extend(fda_data.get("results", []))
@@ -279,7 +275,6 @@ def run_ingest():
             openfda = drug.get("openfda", {})
             generic_names = openfda.get("generic_name", [])
             if not generic_names:
-                print(f"DEBUG skipping record {idx} — no generic_name")
                 continue
             generic_name = generic_names[0]
             brand_name = openfda.get("brand_name", ["Generic"])[0]
@@ -287,14 +282,23 @@ def run_ingest():
             contraindications = drug.get("contraindications", ["None"])[0][:150]
             side_effects = drug.get("adverse_reactions", ["None"])[0][:150]
             text_chunk = f"Drug: {generic_name} ({brand_name}) | Interactions: {interactions} | Contraindications: {contraindications} | Side Effects: {side_effects}"
+            documents.append(text_chunk)
             ids.append(f"fda_{idx}")
             if len(documents) == 10:
-                collection.add(documents=documents, ids=ids)
+                try:
+                    collection.add(documents=documents, ids=ids)
+                except Exception as e:
+                    sys_logger.error(f"Batch add failed: {e}")
                 documents, ids = [], []
                 time.sleep(3)
-        if documents:
-            collection.add(documents=documents, ids=ids)
-        ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
+
+            if documents:
+                try:
+                    collection.add(documents=documents, ids=ids)
+                except Exception as e:
+                    sys_logger.error(f"Final batch add failed: {e}")
+
+            ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
