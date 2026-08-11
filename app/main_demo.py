@@ -148,20 +148,20 @@ USER QUESTION: {state.current_query}
 
 Answer in this exact format (no extra text before or after):
 
-**Medicine:** [Name]
-**Answer:** [Short clear answer]
-**Storage:** [If asked, else remove this line]
-**Warnings:** [If any, else remove this line]
-
-**Clinical Summary** (only if patient symptoms):
-Severity: LOW / MODERATE / HIGH
-Key Symptoms: [...]
-Recommended Action: ...
-Follow-up Question: ...
-
-Verification Confidence: XX%
-Emotion State: [Neutral / Anxious / Distressed / Confused / Worried]
-This is AI assistance. Final decision should be made by a licensed pharmacist or doctor.
+Respond ONLY with a valid JSON object, no markdown, no extra text:
+{{
+  "medicine": "drug name here",
+  "answer": "your clinical answer here",
+  "warnings": "any warnings or null",
+  "clinical_summary": {{
+    "severity": "LOW or MODERATE or HIGH",
+    "key_symptoms": "symptoms if present or null",
+    "recommended_action": "action or null"
+  }},
+  "verification_confidence": "XX%",
+  "emotion_state": "Neutral or Anxious or Distressed or Confused or Worried",
+  "disclaimer": "This is AI assistance. Final decision should be made by a licensed pharmacist or doctor."
+}}
 """
     try:
         response = ai_client.models.generate_content(model="gemini-2.5-flash", contents=full_prompt)
@@ -175,17 +175,32 @@ This is AI assistance. Final decision should be made by a licensed pharmacist or
 
 def telemetry_parsing_node(state: ClinicalGraphState) -> Dict[str, Any]:
     text = state.raw_llm_output
-    confidence_match = re.search(r"Verification\s+Confidence:\s*(\d+%)", text, re.IGNORECASE)
-    confidence_score = confidence_match.group(1) if confidence_match else "92%"
-    emotion_match = re.search(r"Emotion\s+State:\s*([A-Za-z]+)", text, re.IGNORECASE)
-    parsed_emotion = emotion_match.group(1).lower() if emotion_match else "neutral"
 
-    if "severity: high" in text.lower():
-        risk_level = "HIGH"
-    elif "severity: moderate" in text.lower() or state.is_clinical:
-        risk_level = "MODERATE"
-    else:
-        risk_level = "LOW"
+    try:
+        import json
+        # Try parsing as JSON first
+        parsed = json.loads(text)
+        confidence_score = parsed.get("verification_confidence", "92%")
+        parsed_emotion = parsed.get("emotion_state", "neutral").lower()
+        severity = parsed.get("clinical_summary", {}).get("severity", "LOW")
+        if severity == "HIGH":
+            risk_level = "HIGH"
+        elif severity == "MODERATE" or state.is_clinical:
+            risk_level = "MODERATE"
+        else:
+            risk_level = "LOW"
+    except (json.JSONDecodeError, AttributeError):
+        # Fallback to regex if JSON parsing fails
+        confidence_match = re.search(r"Verification\s+Confidence:\s*(\d+%)", text, re.IGNORECASE)
+        confidence_score = confidence_match.group(1) if confidence_match else "92%"
+        emotion_match = re.search(r"Emotion\s+State:\s*([A-Za-z]+)", text, re.IGNORECASE)
+        parsed_emotion = emotion_match.group(1).lower() if emotion_match else "neutral"
+        if "severity: high" in text.lower():
+            risk_level = "HIGH"
+        elif "severity: moderate" in text.lower() or state.is_clinical:
+            risk_level = "MODERATE"
+        else:
+            risk_level = "LOW"
 
     return {"confidence_score": confidence_score, "detected_emotions": [parsed_emotion], "risk_level": risk_level}
 
