@@ -225,14 +225,6 @@ Future versions will support:
 * Embedding generation
 * Knowledge base updates
 * Continuous RAG refresh
-
-**Currently:** Auto-ingests FDA drug records on every container startup via background task.
-
-**Future enhancements:**
-* PDF ingestion from hospital formularies
-* Scheduled knowledge base updates
-* Full FDA database ingestion (13 files, 500k+ records)
-* Custom drug formulary support
 ---
 
 ## ☁️ Production Infrastructure
@@ -292,16 +284,18 @@ Future versions will support:
 
 ## Performance Metrics
 
-| Metric | Value |
-|---|---|
-| Direct Lookup Accuracy | 90% (9/10 across 2 eval runs) |
-| Drug Interaction Accuracy | 63% (5/8 across 2 eval runs) |
-| Contraindication Accuracy | 100% (8/8 across 2 eval runs) |
-| **Core Retrieval Accuracy (combined)** | **85% (22/26 across 2 eval runs)** |
-| p95 Latency | ~5-8s (Gemini 2.5 Flash) |
-| Cost per Request | ~$0.0008 |
-| Records in ChromaDB | 19 FDA drug labels (target drugs guaranteed via explicit fetch) |
-| Evaluation Script | `eval.py` — categorized eval across direct lookup, interaction, contraindication, ambiguous, and out-of-scope queries |
+| Metric | V1 (Baseline) | V2 (Current) |
+|---|---|---|
+| Direct Lookup Accuracy | 80% (4/5) | 86% (6/7) |
+| Drug Interaction Accuracy | 100% (4/4) | 83% (5/6) |
+| Contraindication Accuracy | 100% (4/4) | 100% (6/6) |
+| Out-of-Scope Rejection | Not tested | 100% (3/3) |
+| Records in ChromaDB | 19 FDA labels | 444 FDA labels |
+| Embedding Model | Gemini cloud API | Local all-MiniLM-L6-v2 |
+| Similarity Threshold | None | 0.95 cosine distance |
+| Eval Test Cases | 10 queries | 24 queries (5 categories) |
+| p95 Latency | ~16s (cold start) | ~5-8s (local) |
+| Cost per Request | ~$0.0008 | ~$0.0004 (embeddings free) |
 
 **Known limitations:**
 
