@@ -48,12 +48,22 @@ test_cases = [
     {"q": "What's the weather like today?", "expected": "REFUSE", "category": "out_of_scope"},
     {"q": "Can you diagnose my chest pain?", "expected": "REFUSE", "category": "out_of_scope"},
     {"q": "What stock should I invest in?", "expected": "REFUSE", "category": "out_of_scope"},
+
+    # Category: new drugs (metformin, lisinopril, atorvastatin)
+
+    {"q": "What are side effects of metformin?", "expected": "metformin", "category": "direct_lookup"},
+    {"q": "Metformin contraindications", "expected": "metformin", "category": "contraindication"},
+    {"q": "Can patient take metformin with lisinopril?", "expected": "metformin", "category": "interaction"},
+    {"q": "What are side effects of lisinopril?", "expected": "lisinopril", "category": "direct_lookup"},
+    {"q": "Atorvastatin drug interactions", "expected": "atorvastatin", "category": "interaction"},
+    {"q": "Is atorvastatin safe long term?", "expected": "atorvastatin", "category": "contraindication"},
 ]
 
 results = []
 category_stats = {}
 
 for i, case in enumerate(test_cases):
+    time.sleep(13)  # 13 seconds = 4-5 requests per minute, safe
     t0 = time.time()
     try:
         res = requests.post(
