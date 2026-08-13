@@ -234,6 +234,7 @@ async def startup_ingest():
 
 @app.post("/chat", dependencies=[Depends(validate_api_key)])
 async def chat_endpoint(payload: ChatRequest):
+    request_start_time = time.time()
     sys_logger.info(f"Processing clinical evaluation track on Session ID: {payload.session_id}")
     config = {"configurable": {"thread_id": payload.session_id}}
     initial_input = {"session_id": payload.session_id, "current_query": payload.message.strip()}
@@ -247,7 +248,9 @@ async def chat_endpoint(payload: ChatRequest):
         "clinical_risk_tier": output_state["risk_level"],
         "verification_confidence": output_state["confidence_score"],
         "retrieved_evidence_blocks_used": len(output_state["evidence_sources"]),
-        "api_gateway_status": gateway_status
+        "api_gateway_status": gateway_status,
+        "retrieval_distance": output_state.get("retrieval_distance", None),
+        "latency_ms": round((time.time() - request_start_time) * 1000)
     }
     sys_logger.info(f"Audit log generated successfully for session {payload.session_id}")
     return {
