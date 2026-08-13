@@ -98,6 +98,7 @@ class ClinicalGraphState(BaseModel):
     confidence_score: str = "92%"
     detected_emotions: List[str] = ["neutral"]
     evidence_sources: List[str] = []
+    retrieval_distance: Optional[float] = None
 
 class LLMResponse(BaseModel):
     medicine: str = "Unknown"
@@ -134,16 +135,35 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         if documents and distances and min(distances) < SIMILARITY_THRESHOLD:
             retrieved = documents
             evidence = [f"ChromaDB Guidelines Chunk: {r[:120]}..." for r in retrieved]
+            min_distance = round(min(distances), 4)
         else:
             retrieved = ["No sufficiently relevant FDA evidence found for this query."]
             evidence = []
+            min_distance = round(min(distances), 4) if distances else None
+
+        return {"is_clinical": is_clinical, "retrieved_context": retrieved, "evidence_sources": evidence,
+                "retrieval_distance": min_distance}
+
 
     except Exception as e:
+
         sys_logger.error(f"Vector Database lookup error: {str(e)}")
+
         retrieved = ["Database lookup failed."]
+
         evidence = []
 
-    return {"is_clinical": is_clinical, "retrieved_context": retrieved, "evidence_sources": evidence}
+        return {
+
+            "is_clinical": is_clinical,
+
+            "retrieved_context": retrieved,
+
+            "evidence_sources": evidence,
+
+            "retrieval_distance": None
+
+        }
 
 
 def generation_node(state: ClinicalGraphState) -> Dict[str, Any]:
@@ -239,6 +259,7 @@ async def chat_endpoint(payload: ChatRequest):
     config = {"configurable": {"thread_id": payload.session_id}}
     initial_input = {"session_id": payload.session_id, "current_query": payload.message.strip()}
     output_state = cdss_engine.invoke(initial_input, config)
+    print("DEBUG FINAL STATE:", output_state)
     has_evidence = len(output_state.get("evidence_sources", [])) > 0
     gateway_status = "200_OK_RAG_CONTEXT" if has_evidence else "200_OK_NATIVE_LLM"
     audit_log = {
