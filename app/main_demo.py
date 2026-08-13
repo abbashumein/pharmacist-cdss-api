@@ -198,7 +198,7 @@ def telemetry_parsing_node(state: ClinicalGraphState) -> Dict[str, Any]:
             risk_level = "MODERATE"
         else:
             risk_level = "LOW"
-    except (json.JSONDecodeError, AttributeError):
+    except Exception:
         # Fallback to regex if JSON parsing fails
         confidence_match = re.search(r"Verification\s+Confidence:\s*(\d+%)", text, re.IGNORECASE)
         confidence_score = confidence_match.group(1) if confidence_match else "92%"
