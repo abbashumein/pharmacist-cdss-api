@@ -180,6 +180,7 @@ def telemetry_parsing_node(state: ClinicalGraphState) -> Dict[str, Any]:
         import json
         # Try parsing as JSON first
         parsed = json.loads(text)
+        print(f"DEBUG JSON parsed successfully: {parsed.get('verification_confidence')}")
         confidence_score = parsed.get("verification_confidence", "92%")
         parsed_emotion = parsed.get("emotion_state", "neutral").lower()
         severity = parsed.get("clinical_summary", {}).get("severity", "LOW")
