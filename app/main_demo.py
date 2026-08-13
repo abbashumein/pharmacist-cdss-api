@@ -9,7 +9,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Security, Backgroun
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-
+from typing import Optional
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from google import genai
@@ -99,6 +99,15 @@ class ClinicalGraphState(BaseModel):
     detected_emotions: List[str] = ["neutral"]
     evidence_sources: List[str] = []
 
+class LLMResponse(BaseModel):
+    medicine: str = "Unknown"
+    answer: str = "Unable to process response."
+    warnings: Optional[str] = None
+    clinical_summary: Optional[dict] = None
+    verification_confidence: str = "92%"
+    emotion_state: str = "Neutral"
+    disclaimer: str = "This is AI assistance. Final decision should be made by a licensed pharmacist or doctor."
+
 
 def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
     user_msg = state.current_query
@@ -178,12 +187,11 @@ def telemetry_parsing_node(state: ClinicalGraphState) -> Dict[str, Any]:
 
     try:
         import json
-        # Try parsing as JSON first
-        parsed = json.loads(text)
-        print(f"DEBUG JSON parsed successfully: {parsed.get('verification_confidence')}")
-        confidence_score = parsed.get("verification_confidence", "92%")
-        parsed_emotion = parsed.get("emotion_state", "neutral").lower()
-        severity = parsed.get("clinical_summary", {}).get("severity", "LOW")
+        raw = json.loads(text)
+        parsed = LLMResponse(**raw)
+        confidence_score = parsed.verification_confidence
+        parsed_emotion = parsed.emotion_state.lower()
+        severity = (parsed.clinical_summary or {}).get("severity", "LOW")
         if severity == "HIGH":
             risk_level = "HIGH"
         elif severity == "MODERATE" or state.is_clinical:
@@ -310,13 +318,13 @@ def run_ingest():
                 documents, ids = [], []
                 time.sleep(3)
 
-            if documents:
+        if documents:
                 try:
                     collection.add(documents=documents, ids=ids)
                 except Exception as e:
                     sys_logger.error(f"Final batch add failed: {e}")
 
-            ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
+        ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
     except Exception as e:
         import traceback
         tb = traceback.format_exc()
