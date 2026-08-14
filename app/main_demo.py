@@ -14,6 +14,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from google import genai
 from pydantic import BaseModel, validator
+from sentence_transformers import CrossEncoder
 import chromadb
 from chromadb import EmbeddingFunction, Documents, Embeddings
 from sentence_transformers import SentenceTransformer
@@ -44,6 +45,8 @@ class LocalEmbeddingFunction(EmbeddingFunction):
     def __call__(self, input: Documents) -> Embeddings:
         embeddings = self.model.encode(input)
         return embeddings.tolist()
+
+reranker = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 
 
 app = FastAPI(title="Pharmacist CDSS Enterprise API")
@@ -155,7 +158,11 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         SIMILARITY_THRESHOLD = 0.95
 
         if documents and distances and min(distances) < SIMILARITY_THRESHOLD:
-            retrieved = documents
+            # Rerank retrieved chunks
+            pairs = [[search_query, doc] for doc in documents]
+            scores = reranker.predict(pairs)
+            ranked = sorted(zip(scores, documents), reverse=True)
+            retrieved = [doc for _, doc in ranked]
             evidence = [f"ChromaDB Guidelines Chunk: {r[:120]}..." for r in retrieved]
             min_distance = round(min(distances), 4)
         else:
