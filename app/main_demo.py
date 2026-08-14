@@ -139,7 +139,7 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         else:
             retrieved = ["No sufficiently relevant FDA evidence found for this query."]
             evidence = []
-            min_distance = round(min(distances), 4) if distances else None
+            min_distance = round(min(distances), 4) if distances and len(distances) > 0 else None
 
         return {"is_clinical": is_clinical, "retrieved_context": retrieved, "evidence_sources": evidence,
                 "retrieval_distance": min_distance}
