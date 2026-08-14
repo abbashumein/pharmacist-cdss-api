@@ -13,6 +13,7 @@ from typing import Optional
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from google import genai
+from pydantic import BaseModel, validator
 import chromadb
 from chromadb import EmbeddingFunction, Documents, Embeddings
 from sentence_transformers import SentenceTransformer
@@ -87,6 +88,14 @@ class ChatRequest(BaseModel):
     message: str
     medication: str = "None"
 
+    @validator('message')
+    def message_must_not_be_empty(cls, v):
+        if not v or not v.strip():
+            raise ValueError('Message cannot be empty')
+        if len(v) > 1000:
+            raise ValueError('Message too long — maximum 1000 characters')
+        return v.strip()
+
 
 class ClinicalGraphState(BaseModel):
     session_id: str
@@ -125,7 +134,6 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
             search_query = user_msg
 
         db_results = collection.query(query_texts=[search_query], n_results=2, include=["documents", "distances"])
-        print(f"DEBUG distances for '{search_query}': {db_results.get('distances')}")
 
         distances = db_results.get('distances', [[]])[0]
         documents = db_results.get('documents', [[]])[0]
