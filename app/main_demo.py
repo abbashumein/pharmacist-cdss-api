@@ -129,12 +129,26 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
     evidence = []
     try:
         search_query = user_msg
-        found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen"] if word in user_msg.lower()]
+        found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen",
+                                         "metformin", "lisinopril", "atorvastatin", "omeprazole",
+                                         "amlodipine", "metoprolol", "levothyroxine", "albuterol"] if
+                       word in user_msg.lower()]
+
         if found_drugs:
-            search_query = user_msg
+            # Query rewriting — extract drug names + clinical intent keywords
+            intent_keywords = []
+            if any(word in user_msg.lower() for word in ["interaction", "safe", "together", "combine", "mix"]):
+                intent_keywords.append("drug interaction")
+            if any(word in user_msg.lower() for word in ["contraindication", "avoid", "cannot", "should not"]):
+                intent_keywords.append("contraindication")
+            if any(word in user_msg.lower() for word in ["side effect", "adverse", "reaction", "symptom"]):
+                intent_keywords.append("adverse reactions side effects")
+
+            drug_string = " ".join(found_drugs)
+            intent_string = " ".join(intent_keywords)
+            search_query = f"{drug_string} {intent_string}".strip()
 
         db_results = collection.query(query_texts=[search_query], n_results=2, include=["documents", "distances"])
-
         distances = db_results.get('distances', [[]])[0]
         documents = db_results.get('documents', [[]])[0]
 
