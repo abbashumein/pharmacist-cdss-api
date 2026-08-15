@@ -350,32 +350,113 @@ def run_ingest():
             sys_logger.error(f"Failed to fetch general batch: {fetch_err}")
 
         documents, ids = [], []
+        seen_documents = set()
+        stats = {
+            "total_fetched": len(records),
+            "no_drug_identifier": 0,
+            "no_clinical_data": 0,
+            "duplicates": 0,
+            "accepted": 0
+        }
+
+        def get_fda_text(record, field):
+            value = record.get(field, "")
+
+            if isinstance(value, list):
+                value = value[0] if value else ""
+
+            if not isinstance(value, str):
+                value = str(value) if value else ""
+
+            return value.strip()
+
         for idx, drug in enumerate(records):
             openfda = drug.get("openfda", {})
-            generic_names = openfda.get("generic_name", [])
-            if not generic_names:
+
+            generic_name = get_fda_text(openfda, "generic_name")
+            brand_name = get_fda_text(openfda, "brand_name")
+            active_ingredient = get_fda_text(drug, "active_ingredient")
+
+            # Use whichever FDA identifier is available.
+            drug_name = generic_name or brand_name or active_ingredient
+
+            # Skip records that don't identify a drug/product at all.
+            if not drug_name:
+                stats["no_drug_identifier"] += 1
                 continue
-            generic_name = generic_names[0]
-            brand_name = openfda.get("brand_name", ["Generic"])[0]
-            interactions = drug.get("drug_interactions", ["None"])[0][:150]
-            contraindications = drug.get("contraindications", ["None"])[0][:150]
-            side_effects = drug.get("adverse_reactions", ["None"])[0][:150]
-            text_chunk = f"Drug: {generic_name} ({brand_name}) | Interactions: {interactions} | Contraindications: {contraindications} | Side Effects: {side_effects}"
+
+            interactions = get_fda_text(drug, "drug_interactions")
+            contraindications = get_fda_text(drug, "contraindications")
+            side_effects = get_fda_text(drug, "adverse_reactions")
+            warnings = get_fda_text(drug, "warnings")
+            dosage = get_fda_text(drug, "dosage_and_administration")
+            indications = get_fda_text(drug, "indications_and_usage")
+            purpose = get_fda_text(drug, "purpose")
+            do_not_use = get_fda_text(drug, "do_not_use")
+            stop_use = get_fda_text(drug, "stop_use")
+            pregnancy = get_fda_text(drug, "pregnancy_or_breast_feeding")
+
+            # Keep the record if it contains at least one useful clinical field.
+            useful_fields = [
+                interactions,
+                contraindications,
+                side_effects,
+                warnings,
+                dosage,
+                indications,
+                purpose,
+                do_not_use,
+                stop_use,
+                pregnancy,
+                active_ingredient
+            ]
+
+            if not any(useful_fields):
+                stats["no_clinical_data"] += 1
+                continue
+
+            text_chunk = (
+                f"Drug: {drug_name} ({brand_name or 'Generic'}) | "
+                f"Active Ingredient: {active_ingredient[:300]} | "
+                f"Interactions: {interactions[:300]} | "
+                f"Contraindications: {contraindications[:300]} | "
+                f"Side Effects: {side_effects[:300]} | "
+                f"Warnings: {warnings[:300]} | "
+                f"Dosage: {dosage[:300]} | "
+                f"Indications: {indications[:300]} | "
+                f"Purpose: {purpose[:300]} | "
+                f"Do Not Use: {do_not_use[:300]} | "
+                f"Stop Use: {stop_use[:300]} | "
+                f"Pregnancy: {pregnancy[:300]}"
+            )
+
+            if text_chunk in seen_documents:
+                stats["duplicates"] += 1
+                continue
+
+            seen_documents.add(text_chunk)
+            stats["accepted"] += 1
             documents.append(text_chunk)
-            ids.append(f"fda_{idx}")
+            ids.append(f"fda_{len(seen_documents)}")
+
             if len(documents) == 10:
                 try:
                     collection.add(documents=documents, ids=ids)
                 except Exception as e:
                     sys_logger.error(f"Batch add failed: {e}")
+
                 documents, ids = [], []
                 time.sleep(3)
 
         if documents:
-                try:
-                    collection.add(documents=documents, ids=ids)
-                except Exception as e:
-                    sys_logger.error(f"Final batch add failed: {e}")
+            try:
+                collection.add(documents=documents, ids=ids)
+            except Exception as e:
+                sys_logger.error(f"Final batch add failed: {e}")
+                print("=" * 60)
+                print("INGESTION STATISTICS")
+                print(json.dumps(stats, indent=2))
+                print("=" * 60)
 
         ingest_status = {"running": False, "done": True, "count": collection.count(), "error": None}
     except Exception as e:
