@@ -40,7 +40,7 @@ embedding_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 # Connect to the existing local ChromaDB
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
 
-collection = chroma_client.get_collection(
+collection = chroma_client.get_or_create_collection(
     name="langchain"
 )
 # ============================================================
@@ -110,6 +110,7 @@ def check_fda_database(query: str) -> str:
     try:
         search_query = rewrite_clinical_query(query)
 
+        fresh_collection = chroma_client.get_or_create_collection(name="langchain")
         db_results = collection.query(
             query_texts=[search_query],
             n_results=5,
