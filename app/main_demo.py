@@ -332,7 +332,7 @@ def run_ingest():
         ]
         records = []
         for drug_name in target_drugs:
-            url = f"https://api.fda.gov/drug/label.json?search=openfda.generic_name:{drug_name}&limit=5"
+            url = f"https://api.fda.gov/drug/label.json?search=openfda.generic_name:{drug_name}&limit=10"
             try:
                 with urllib.request.urlopen(url, timeout=30) as r:
                     data = json.loads(r.read().decode())
