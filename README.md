@@ -1,8 +1,13 @@
 # Pharmacist CDSS — AI-Powered Clinical Decision Support System
 
-A production-deployed Clinical Decision Support System that assists pharmacists and healthcare professionals with drug interaction checks, medication safety assessment, and evidence-grounded clinical guidance.
+A production-grade Clinical Decision Support System that assists pharmacists and healthcare professionals with drug interaction checks, medication safety assessment, and evidence-grounded clinical guidance.
 
-The system combines a **LangGraph 3-node RAG pipeline**, **ChromaDB vector database**, and **Gemini 2.5 Flash LLM** to retrieve real FDA drug records and generate structured clinical responses — with live risk assessment, emotion detection, and full audit logging.
+The system exists in two versions:
+- **V2 (RAG Pipeline)** — LangGraph 3-node pipeline with ChromaDB, local embeddings, CrossEncoder reranking, query rewriting, and structured JSON output
+- **V3 (Agentic)** — LangGraph agent where Gemini decides when to call the FDA tool, with conditional routing and 100% tool routing accuracy
+
+Both versions retrieve real FDA drug records (806 labels) and generate structured clinical responses with risk assessment, emotion detection, and full audit logging.
+
 ---
 
 ## Key Features
@@ -11,32 +16,36 @@ The system combines a **LangGraph 3-node RAG pipeline**, **ChromaDB vector datab
 * Drug interaction safety checks
 * Medication side effect guidance
 * Patient symptom triage with severity scoring (LOW/MODERATE/HIGH)
-* Structured clinical responses with follow-up recommendations
+* Structured clinical responses with evidence grounding
+* Out-of-scope query rejection — non-clinical queries refused automatically
 
-### Retrieval-Augmented Generation (RAG)
-* Semantic search via Gemini Embeddings
-* ChromaDB vector database with FDA drug records
+### Retrieval-Augmented Generation (RAG) — V2
+* Local all-MiniLM-L6-v2 embeddings — free, unlimited, no API quota
+* ChromaDB vector database with 806 FDA drug labels
+* CrossEncoder reranking (ms-marco-MiniLM-L-6-v2) for precision
+* Query rewriting — extracts drug names + clinical intent keywords
+* Cosine similarity threshold — rejects irrelevant chunks
 * Evidence-grounded responses with source attribution
-* Auto-ingestion from openFDA API on every startup
 
-### LangGraph AI Orchestration
-* 3-node pipeline: Triage → RAG → Generation → Telemetry
-* Clinical keyword detection and drug name extraction
-* Multi-stage prompt construction with retrieved context
-* Session-based memory with MemorySaver
+### Agentic Tool Calling — V3
+* LangGraph agent loop — Gemini decides when FDA tool is needed
+* `check_fda_database()` tool — query rewriting + ChromaDB + CrossEncoder
+* Conditional routing — clinical queries → FDA tool, out-of-scope → direct refusal
+* 100% tool routing accuracy across 20 evaluation queries
+* 90% grounded responses — answers backed by retrieved FDA evidence
 
-### Live Telemetry Dashboard
-* Real-time clinical risk badge (LOW/MODERATE/HIGH)
-* Confidence score per response
-* Patient emotion state detection
-* Full audit trail per query
+### Evaluation Framework
+* V2: 24-query eval — 100% direct lookup, 83% interaction, 100% contraindication
+* V3: 20-query agent eval — 100% tool routing, 90% grounded responses
+* Separate retrieval and agent evaluation scripts
 
 ### Production Infrastructure
-* FastAPI backend with API key security
+* FastAPI backend with API key security and input validation
 * Docker containerized deployment
 * Azure Container Apps cloud hosting
 * GitHub Actions CI/CD pipeline
 * Custom HTML/JS frontend served from same container
+* Full audit trail per query — retrieval distance, latency, confidence score
 
 ## 📸 System in Action
 
@@ -57,41 +66,61 @@ The system combines a **LangGraph 3-node RAG pipeline**, **ChromaDB vector datab
 
 ## Project Goal
 
-To demonstrate how modern AI engineering combines RAG pipelines, vector databases, LLM reasoning, and cloud infrastructure to build a deployable, production-ready clinical decision support application.
+To demonstrate how modern AI engineering combines RAG pipelines, agentic tool calling, vector databases, LLM reasoning, and cloud infrastructure to build a deployable, production-ready clinical decision support application.
 
-This project focuses on **practical AI system building** — not standalone model training — showing how multiple AI components can be orchestrated into a real deployed product.
+This project focuses on **practical AI system building** — not standalone model training — showing how multiple AI components can be orchestrated into a real deployed product across two progressively advanced architectures.
 
 ---
 
 ## 🚀 Current Implementation
 
-The system is fully built and deployed. All components are live and functional.
+The system exists in two production-ready versions. All components are built, evaluated, and pushed to GitHub.
 
-### Core Components
+### V2 — RAG Pipeline (main_demo.py)
 
 **FastAPI API Gateway**
 * Asynchronous API endpoints
-* Pydantic request validation
+* Pydantic request validation with Optional typing
 * API key security middleware
+* Input sanitization — empty/oversized messages rejected
 * RESTful architecture with Swagger docs
 
-**LangGraph Orchestration Pipeline**
-* 3-node workflow: Triage → Generation → Telemetry
-* Clinical keyword and drug name detection
-* Session memory with MemorySaver
-* Conditional evidence retrieval
+**LangGraph 3-Node Pipeline**
+* Triage Node — clinical keyword detection, drug name extraction, query rewriting
+* Generation Node — FDA context injection, Gemini JSON output, grounding instruction
+* Telemetry Node — JSON parsing with regex fallback, risk level, confidence, emotion
 
-**Retrieval-Augmented Generation (RAG)**
-* ChromaDB vector storage
-* Gemini Embedding (models/gemini-embedding-001)
-* Semantic similarity search
-* openFDA API auto-ingestion on startup
+**Retrieval-Augmented Generation**
+* ChromaDB vector storage (806 FDA drug labels)
+* Local all-MiniLM-L6-v2 embeddings — free, unlimited
+* CrossEncoder reranking — ms-marco-MiniLM-L-6-v2
+* Cosine similarity threshold (0.95) — rejects irrelevant chunks
+* Query rewriting — drug names + clinical intent keywords
+* openFDA API auto-ingestion on startup with duplicate removal
 
-**Gemini 2.5 Flash LLM**
-* Context-aware clinical prompt construction
-* Retrieved FDA context injection
-* Structured response format enforcement
-* Safety disclaimer enforcement
+**Observability**
+* Retrieval distance logged per query
+* Latency tracked per request
+* Full audit trail — session, risk tier, confidence, evidence blocks used
+
+### V3 — Agentic Pipeline (main_agentic.py)
+
+**LangGraph Agent Loop**
+* Agent node — Gemini decides whether FDA tool is needed
+* Tool node — executes check_fda_database()
+* Conditional routing — clinical → tool, out-of-scope → direct refusal
+* MemorySaver for session continuity
+
+**FDA Tool (check_fda_database)**
+* Query rewriting — extracts drug names + clinical intent
+* ChromaDB retrieval — top 5 candidates
+* CrossEncoder reranking — scores and sorts by relevance
+* Returns ranked evidence with reranker scores and vector distances
+
+**Evaluation Framework**
+* V2: 24-query eval — direct lookup 100%, interaction 83%, contraindication 100%
+* V3: 20-query agent eval — tool routing 100%, grounded responses 90%
+* Separate evaluation scripts in /evaluation directory
 
 **Frontend UI**
 * Custom HTML/CSS/JS chat interface
@@ -104,7 +133,6 @@ The system is fully built and deployed. All components are live and functional.
 * Azure Container Apps hosting
 * GitHub Actions CI/CD pipeline
 * Auto-deploy on every git push
-
 ---
 ## 🏗️ System Architecture
 
