@@ -215,19 +215,25 @@ Agent Node
 Response + tool_called + fda_evidence_used + risk_level + latency
 ```
 ---
-
 ## 📁 Project Structure
 
 ```text
 app/
 │
-├── main_demo.py          # FastAPI app + LangGraph pipeline
+├── main_demo.py          # V2 — FastAPI + LangGraph RAG pipeline
+├── main_agentic.py       # V3 — FastAPI + LangGraph agentic pipeline
+├── main_demo_backup.py   # V2 backup before Phase 6 changes
 │
 └── utils/
     └── logger.py         # Structured logging
 
+evaluation/
+├── test_cases.json       # 20 agent evaluation queries
+├── evaluate_agent.py     # V3 agent evaluation script
+└── results.json          # Latest evaluation results
+
 static/
-└── index.html            # Frontend UI
+└── index.html            # Frontend UI (V2)
 
 screenshots/              # Testing proof screenshots
 
@@ -237,6 +243,7 @@ screenshots/              # Testing proof screenshots
 
 Dockerfile                # Container build
 requirements.txt          # Python dependencies
+eval.py                   # V2 RAG evaluation script (24 queries)
 README.md
 ```
 
