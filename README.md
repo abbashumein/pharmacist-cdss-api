@@ -64,11 +64,20 @@ Both versions retrieve real FDA drug records (806 labels) and generate structure
 **API Documentation — Swagger UI**
 ![Swagger Docs](screenshots/swagger.PNG)
 
+## Problem Statement
+
+Pharmacists in high-volume settings make 50+ drug interaction checks daily under time pressure. Errors in drug interaction assessment contribute to 1.5 million patient injuries annually in the US. Existing tools are either too slow, too generic, or not grounded in verified FDA data.
+
+This system provides instant, FDA-verified drug interaction guidance with explicit risk flagging, evidence attribution, and full audit logging — designed as a decision support tool, not a replacement for clinical judgment.
+
 ## Project Goal
 
 To demonstrate how modern AI engineering combines RAG pipelines, agentic tool calling, vector databases, LLM reasoning, and cloud infrastructure to build a deployable, production-ready clinical decision support application.
 
-This project focuses on **practical AI system building** — not standalone model training — showing how multiple AI components can be orchestrated into a real deployed product across two progressively advanced architectures.
+This project focuses on **practical AI system building** — not standalone model training — showing how multiple AI components can be orchestrated into a real deployed product across two progressively advanced architectures:
+
+- **V2** — Production RAG pipeline with evaluation, observability, and safety controls
+- **V3** — Agentic system where the LLM decides when and how to use the FDA retrieval tool
 
 ---
 
@@ -136,37 +145,75 @@ The system exists in two production-ready versions. All components are built, ev
 ---
 ## 🏗️ System Architecture
 
+### V2 — RAG Pipeline
+
 ```text
 User Query (Frontend UI)
+        │
+        ▼
+FastAPI API Gateway
+(API Key Security + Pydantic Validation + Input Sanitization)
+        │
+        ▼
+LangGraph 3-Node Pipeline
+        │
+        ▼
+Triage Node
+(Query Rewriting + Drug Extraction + Keyword Detection)
+        │
+        ▼
+ChromaDB Vector Search
+(806 FDA Records + Local Embeddings + Cosine Threshold)
+        │
+        ▼
+CrossEncoder Reranking
+(ms-marco-MiniLM-L-6-v2)
+        │
+        ▼
+Generation Node
+(Gemini 2.5 Flash + FDA Context Injection + JSON Output)
+        │
+        ▼
+Telemetry Node
+(JSON Parsing + Risk Level + Confidence + Emotion)
+        │
+        ▼
+Structured Clinical Response + Full Audit Trail
+(retrieval_distance + latency_ms + evidence_sources)
+```
+
+### V3 — Agentic Pipeline
+
+```text
+User Query
         │
         ▼
 FastAPI API Gateway
 (API Key Security + Pydantic Validation)
         │
         ▼
-LangGraph Pipeline
+LangGraph Agent Node
+(Gemini decides: does this need FDA evidence?)
         │
-   ┌────┴──────────┐
-   ▼               ▼
-Triage Node     ChromaDB
-(keyword +      Vector DB
-drug detection) (FDA Records)
-   │               │
-   └────┬──────────┘
-        ▼
-Generation Node
-(Gemini 2.5 Flash +
-Retrieved FDA Context)
+   ┌────┴────────────────┐
+   ▼                     ▼
+Clinical Query      Out-of-Scope Query
+   │                     │
+   ▼                     ▼
+check_fda_database()  Direct Refusal
+(Query Rewriting +    (No tool called)
+ChromaDB + CrossEncoder)
+   │
+   ▼
+FDA Evidence
+   │
+   ▼
+Agent Node
+(Gemini synthesizes grounded clinical response)
         │
         ▼
-Telemetry Node
-(Risk + Confidence + Emotion)
-        │
-        ▼
-Structured Clinical Response
-+ Full Audit Trail
+Response + tool_called + fda_evidence_used + risk_level + latency
 ```
-
 ---
 
 ## 📁 Project Structure
