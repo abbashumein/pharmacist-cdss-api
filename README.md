@@ -170,61 +170,51 @@ README.md
 
 ## 🧠 AI Workflow
 
+### V2 — RAG Pipeline (main_demo.py)
 1. Pharmacist submits query via frontend UI
 2. FastAPI validates and routes the request
-3. **Triage Node** — detects clinical keywords, identifies drug names
-4. **RAG Node** — ChromaDB semantic search retrieves relevant FDA drug records
-5. **Generation Node** — Gemini 2.5 Flash receives:
-   * Retrieved FDA context
-   * Patient medication profile
-   * Clinical triage signals
-6. **Telemetry Node** — extracts risk level, confidence score, emotion state
-7. Structured clinical response returned with full audit trail
+3. **Triage Node** — detects clinical keywords, rewrites query with drug names + intent keywords
+4. **RAG Node** — ChromaDB semantic search retrieves top 5 FDA chunks, CrossEncoder reranks them
+5. **Generation Node** — Gemini 2.5 Flash receives retrieved FDA context + generates structured JSON response
+6. **Telemetry Node** — parses JSON, extracts risk level, confidence score, emotion state
+7. Structured clinical response returned with full audit trail including retrieval distance and latency
+
+### V3 — Agentic Pipeline (main_agentic.py)
+1. Pharmacist submits query via FastAPI
+2. **Agent Node** — Gemini decides: does this query need FDA evidence?
+3. If YES → calls `check_fda_database()` tool → query rewriting → ChromaDB → CrossEncoder reranking
+4. FDA evidence injected back into agent context
+5. **Agent Node** — Gemini synthesizes clinical response grounded in FDA evidence
+6. If NO (out-of-scope) → agent refuses directly without calling tool
+7. Response returned with tool_called flag, grounding status, risk level, latency
+
 ---
-
 ## 🔄 Knowledge Ingestion Pipeline
-
 ```text
-openFDA API
-
+openFDA API (806 FDA drug labels)
 │
-
 ▼
-
-Auto-ingest on Startup
-
+Auto-ingest on Startup (BackgroundTasks)
 │
-
 ▼
-
-Text Chunking (drug name + interactions + contraindications)
-
+Text Chunking (drug + interactions + contraindications + side effects + warnings + dosage)
 │
-
 ▼
-
-Gemini Embedding (models/gemini-embedding-001)
-
+Duplicate removal (seen_documents set)
 │
-
 ▼
-
-ChromaDB Vector Store
-
+Local all-MiniLM-L6-v2 Embeddings (free, unlimited, no API quota)
 │
-
 ▼
-
-RAG Retrieval Layer
+ChromaDB Vector Store (PersistentClient)
+│
+▼
+Query Rewriting + CrossEncoder Reranking
+│
+▼
+RAG or Agentic Retrieval Layer
 ```
 
-Future versions will support:
-
-* PDF ingestion
-* Automated chunking
-* Embedding generation
-* Knowledge base updates
-* Continuous RAG refresh
 ---
 
 ## ☁️ Production Infrastructure
@@ -251,17 +241,19 @@ Future versions will support:
 |---|---|
 | Language | Python 3.11 |
 | API Framework | FastAPI + Uvicorn |
-| AI Orchestration | LangGraph |
+| AI Orchestration | LangGraph (RAG pipeline + Agentic loop) |
 | LLM | Gemini 2.5 Flash (google-genai SDK) |
-| Embeddings | Gemini Embedding (models/gemini-embedding-001) |
-| Vector Database | ChromaDB |
-| Data Validation | Pydantic |
+| Embeddings | Local all-MiniLM-L6-v2 (sentence-transformers) |
+| Reranker | CrossEncoder ms-marco-MiniLM-L-6-v2 |
+| Vector Database | ChromaDB PersistentClient |
+| Data Validation | Pydantic v2 |
 | Containerization | Docker |
 | Cloud Platform | Azure Container Apps |
 | Container Registry | Azure Container Registry |
 | CI/CD | GitHub Actions |
-| Data Source | openFDA API |
+| Data Source | openFDA API (806 FDA drug labels) |
 | Frontend | HTML + CSS + JavaScript |
+| Evaluation | Custom eval framework (retrieval + agent grounding metrics) |
 
 ---
 
@@ -270,15 +262,21 @@ Future versions will support:
 | AI Engineering Concept | Implementation |
 |---|---|
 | LLM Integration | Gemini 2.5 Flash via google-genai SDK |
-| Retrieval-Augmented Generation | ChromaDB + Gemini Embeddings + openFDA API |
-| AI Orchestration | LangGraph 3-node pipeline |
+| Retrieval-Augmented Generation | ChromaDB + Local Embeddings + openFDA API (806 FDA records) |
+| Agentic AI | LangGraph agent with conditional FDA tool calling (V3) |
+| AI Orchestration | LangGraph 3-node pipeline (V2) + Agent loop (V3) |
 | Vector Database | ChromaDB PersistentClient |
-| API Engineering | FastAPI + Pydantic validation |
+| Semantic Search | Local all-MiniLM-L6-v2 sentence-transformers |
+| Reranking | CrossEncoder ms-marco-MiniLM-L-6-v2 |
+| Query Rewriting | Drug name extraction + clinical intent keywords |
+| Structured Output | Gemini JSON output + Pydantic validation |
+| Evaluation | 24-query RAG eval + 20-query agent eval with grounding metrics |
+| API Engineering | FastAPI + Pydantic validation + input sanitization |
 | Containerization | Docker + Azure Container Registry |
 | CI/CD | GitHub Actions automated deployment |
 | Cloud Deployment | Azure Container Apps |
-| MLOps | Auto-ingestion on startup + audit logging |
-| Security | API Key middleware |
+| MLOps | Auto-ingestion on startup + audit logging + retrieval distance tracking |
+| Security | API Key middleware + secret management |
 | Frontend Integration | Custom HTML/JS served from FastAPI |
 
 ## Performance Metrics
