@@ -16,7 +16,7 @@ print("PHARMACIST CDSS V3 — AGENT EVALUATION")
 print("=" * 60)
 
 for case in test_cases:
-    time.sleep(15)  # Respect Gemini rate limit
+    time.sleep(20)  # Respect Gemini rate limit
 
     try:
         res = requests.post(
@@ -40,6 +40,7 @@ for case in test_cases:
 
     # Evidence grounding — did response mention expected drug?
     if case["expected_drug"]:
+        is_fallback = "temporarily unable" in response or "sorry" in response
         grounded = case["expected_drug"].lower() in response
     else:
         grounded = not fda_used  # out-of-scope should not use FDA
