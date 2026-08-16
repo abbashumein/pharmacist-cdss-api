@@ -281,34 +281,33 @@ Future versions will support:
 | Security | API Key middleware |
 | Frontend Integration | Custom HTML/JS served from FastAPI |
 
-
 ## Performance Metrics
 
-| Metric | V1 (Baseline) | V2 (Current) |
-|---|---|---|
-| Direct Lookup Accuracy | 80% (4/5) | 86% (6/7) |
-| Drug Interaction Accuracy | 100% (4/4) | 83% (5/6) |
-| Contraindication Accuracy | 100% (4/4) | 100% (6/6) |
-| Out-of-Scope Rejection | Not tested | 100% (3/3) |
-| Records in ChromaDB | 19 FDA labels | 444 FDA labels |
-| Embedding Model | Gemini cloud API | Local all-MiniLM-L6-v2 |
-| Similarity Threshold | None | 0.95 cosine distance |
-| Eval Test Cases | 10 queries | 24 queries (5 categories) |
-| p95 Latency | ~16s (cold start) | ~5-8s (local) |
-| Cost per Request | ~$0.0008 | ~$0.0004 (embeddings free) |
+| Metric | V1 (Baseline) | V2 (RAG Pipeline) | V3 (Agentic) |
+|---|---|---|---|
+| Direct Lookup Accuracy | 80% (4/5) | 100% (7/7) | 100% |
+| Drug Interaction Accuracy | 100% (4/4) | 83% (5/6) | 80% (4/5) |
+| Contraindication Accuracy | 100% (4/4) | 100% (6/6) | 100% (3/3) |
+| Out-of-Scope Rejection | Not tested | 100% (3/3) | 100% (4/4) |
+| Tool Routing Accuracy | N/A | N/A | 100% (20/20) |
+| Grounded Responses | N/A | N/A | 90% (18/20) |
+| Records in ChromaDB | 19 FDA labels | 444 FDA labels | 806 FDA labels |
+| Embedding Model | Gemini cloud API | Local all-MiniLM-L6-v2 | Local all-MiniLM-L6-v2 |
+| Reranker | None | CrossEncoder | CrossEncoder |
+| Similarity Threshold | None | 0.95 cosine distance | 0.95 cosine distance |
+| Eval Test Cases | 10 queries | 24 queries | 20 queries |
+| p95 Latency | ~16s (cold start) | ~5-8s (local) | ~5-10s (local) |
+| Cost per Request | ~$0.0008 | ~$0.0004 | ~$0.0004 |
 
-**Known limitations:**
+## V3 Agentic Key Findings
+- Gemini correctly routes ALL 20 queries — tool called for clinical, refused for out-of-scope
+- 90% of clinical responses grounded in retrieved FDA evidence
+- 2 misses: ibuprofen data quality gap + ambiguous query without drug context
 
-* ~~Retrieval currently has no similarity/distance threshold~~ — 
-**Fixed:** Cosine distance threshold (0.8) added in triage node. 
-Out-of-scope queries (e.g. "what's the weather") now correctly 
-return empty evidence instead of irrelevant drug chunks.
-
-* Multi-drug interaction queries (e.g. "warfarin and aspirin") 
-are joined into a single search string before retrieval, which 
-occasionally favors one drug's chunk over the other. This accounts 
-for most interaction-category misses. Planned fix: split multi-drug 
-queries and retrieve separately, then merge results.
+## Known Limitations
+* Multi-drug interaction queries occasionally favor one drug's chunk over the other
+* Ibuprofen FDA records in corpus have incomplete interaction data
+* Gemini free tier limits evaluation to 20 requests/day
 
 ## 🔧 Engineering Challenges & Solutions
 
