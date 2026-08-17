@@ -4,1161 +4,1542 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Pharmacist CDSS — Clinical Decision Support</title>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  :root {
-    --paper: #e9eff6;
-    --surface: #ffffff;
-    --surface-alt: #eef3f8;
-    --border: #d3dee9;
-    --border-strong: #b9c8da;
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --surface2: #f0f4f8;
+  --border: #dde3ed;
+  --navy: #1a2744;
+  --navy-light: #243260;
+  --teal: #0a7c6e;
+  --teal-light: #0d9e8d;
+  --teal-dim: rgba(10,124,110,0.08);
+  --warn: #d97706;
+  --danger: #dc2626;
+  --text: #1a2744;
+  --text-secondary: #4a5568;
+  --muted: #718096;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'Inter', sans-serif;
+  --nav-width: 220px;
+  --header-h: 56px;
+}
 
-    --navy-950: #0a1930;
-    --navy-900: #0f2444;
-    --navy-800: #16305a;
-    --navy-700: #1d3a63;
-    --navy-500: #4a6690;
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
 
-    --teal-700: #0b7d72;
-    --teal-600: #0d8f82;
-    --teal-500: #12a394;
-    --teal-100: #e2f5f2;
+/* HEADER */
+header {
+  height: var(--header-h);
+  background: var(--navy);
+  display: flex;
+  align-items: center;
+  padding: 0 20px 0 0;
+  gap: 0;
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+}
+.header-brand {
+  width: var(--nav-width);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  border-right: 1px solid rgba(255,255,255,0.1);
+  height: 100%;
+}
+.brand-icon {
+  width: 32px; height: 32px;
+  background: var(--teal);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.brand-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
+.brand-text span {
+  display: block;
+  font-size: 9px;
+  color: rgba(255,255,255,0.5);
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+.header-center {
+  flex: 1;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.backend-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.6);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  padding: 3px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.backend-badge:hover { background: rgba(255,255,255,0.1); }
+.backend-badge.v3 { color: #5ce8d8; border-color: rgba(92,232,216,0.3); }
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+}
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+}
+.status-dot.offline { background: #ef4444; }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.pharmacist-mode {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(10,124,110,0.25);
+  border: 1px solid rgba(10,124,110,0.4);
+  border-radius: 6px;
+  padding: 5px 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #5ce8d8;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.pharmacist-mode::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #5ce8d8;
+  box-shadow: 0 0 6px #5ce8d8;
+}
 
-    --amber-700: #92400e;
-    --amber-500: #d97706;
-    --amber-100: #fdf1de;
+/* LAYOUT */
+.app-body {
+  display: flex;
+  margin-top: var(--header-h);
+  min-height: calc(100vh - var(--header-h));
+}
 
-    --red-700: #9f2419;
-    --red-600: #c0342b;
-    --red-100: #fbeae8;
+/* NAV */
+nav {
+  width: var(--nav-width);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  position: fixed;
+  top: var(--header-h);
+  left: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 0;
+  overflow-y: auto;
+}
+.nav-section-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  padding: 0 16px;
+  margin: 12px 0 6px;
+}
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-left: 3px solid transparent;
+  transition: all 0.15s;
+  user-select: none;
+}
+.nav-item:hover { background: var(--bg); color: var(--text); }
+.nav-item.active {
+  background: var(--teal-dim);
+  color: var(--teal);
+  border-left-color: var(--teal);
+  font-weight: 600;
+}
+.nav-icon { font-size: 15px; width: 20px; text-align: center; flex-shrink: 0; }
+.nav-footer {
+  margin-top: auto;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.5;
+}
 
-    --text: #14213a;
-    --muted: #62708a;
-    --muted-2: #99a6bb;
+/* MAIN CONTENT */
+.content {
+  margin-left: var(--nav-width);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
 
-    --serif: 'Newsreader', Georgia, serif;
-    --sans: 'Inter', sans-serif;
-    --mono: 'IBM Plex Mono', monospace;
+/* SCREENS */
+.screen { display: none; flex: 1; flex-direction: column; height: calc(100vh - var(--header-h)); }
+.screen.active { display: flex; }
 
-    --shadow-sm: 0 1px 2px rgba(15,36,68,0.06);
-    --shadow-md: 0 4px 16px rgba(15,36,68,0.08);
-  }
+/* PAGE HEADER */
+.page-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 16px 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.page-title { font-size: 15px; font-weight: 600; color: var(--text); }
+.page-subtitle { font-size: 12px; color: var(--muted); margin-top: 1px; }
 
-  html, body { height: 100%; }
-  body {
-    background: var(--paper);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    display: grid;
-    grid-template-rows: 64px 1fr;
-    font-size: 14px;
-  }
+/* AI ASSISTANT */
+#screen-assistant {
+  display: none;
+  flex: 1;
+}
+#screen-assistant.active {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  height: calc(100vh - var(--header-h));
+}
+.chat-area {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+}
+.chat-window {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-behavior: smooth;
+}
+.chat-window::-webkit-scrollbar { width: 4px; }
+.chat-window::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-  ::selection { background: var(--teal-100); color: var(--navy-900); }
+.welcome-msg {
+  align-self: center;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+  max-width: 400px;
+}
+.welcome-icon {
+  width: 56px; height: 56px;
+  background: var(--teal-dim);
+  border-radius: 16px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 24px;
+  margin: 0 auto 16px;
+  border: 1px solid rgba(10,124,110,0.15);
+}
+.welcome-msg h2 { font-size: 17px; color: var(--text); margin-bottom: 8px; font-weight: 600; }
+.welcome-msg p { font-size: 13px; line-height: 1.6; }
+.quick-queries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 16px;
+}
+.quick-query {
+  font-size: 11px;
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  background: var(--surface);
+  transition: all 0.15s;
+}
+.quick-query:hover { border-color: var(--teal); color: var(--teal); background: var(--teal-dim); }
 
-  button { font-family: inherit; cursor: pointer; }
-  input, textarea, select { font-family: inherit; }
+.msg { display: flex; gap: 10px; max-width: 700px; }
+.msg.user { align-self: flex-end; flex-direction: row-reverse; }
+.msg-avatar {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.msg.user .msg-avatar { background: var(--teal-dim); border: 1px solid rgba(10,124,110,0.2); }
+.msg.assistant .msg-avatar { background: var(--navy); }
+.msg-bubble {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  max-width: 620px;
+  color: var(--text);
+}
+.msg.user .msg-bubble {
+  background: var(--teal-dim);
+  border-color: rgba(10,124,110,0.2);
+}
+.msg-bubble strong { color: var(--teal); }
+.msg-bubble .disclaimer {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+.thinking {
+  display: flex;
+  gap: 4px;
+  padding: 10px 14px;
+  align-items: center;
+}
+.thinking span {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  animation: bounce 1.2s ease-in-out infinite;
+}
+.thinking span:nth-child(2) { animation-delay: 0.2s; }
+.thinking span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes bounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
 
-  /* ================= HEADER ================= */
-  header {
-    background: var(--navy-950);
-    border-bottom: 1px solid var(--navy-800);
-    display: flex;
-    align-items: center;
-    padding: 0 20px;
-    gap: 14px;
-    color: #fff;
-  }
-  .brand { display: flex; align-items: center; gap: 12px; }
-  .brand h1 {
-    font-family: var(--serif);
-    font-size: 18px;
-    font-weight: 600;
-    letter-spacing: 0.01em;
-    color: #fff;
-  }
-  .brand .sub {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--teal-500);
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    margin-top: 1px;
-  }
+.input-bar {
+  border-top: 1px solid var(--border);
+  padding: 14px 20px;
+  display: flex;
+  gap: 10px;
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.input-bar textarea {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  padding: 9px 13px;
+  border-radius: 8px;
+  outline: none;
+  resize: none;
+  height: 42px;
+  line-height: 1.5;
+  transition: border-color 0.2s;
+}
+.input-bar textarea:focus { border-color: var(--teal); }
+.input-bar textarea::placeholder { color: var(--muted); }
+.send-btn {
+  background: var(--teal);
+  color: #fff;
+  border: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 18px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  letter-spacing: 0.06em;
+}
+.send-btn:hover { opacity: 0.88; }
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* pulse trace — signature element */
-  .pulse-trace { width: 46px; height: 28px; flex-shrink: 0; }
-  .pulse-trace path {
-    fill: none;
-    stroke: var(--teal-500);
-    stroke-width: 1.6;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    stroke-dasharray: 120;
-    stroke-dashoffset: 120;
-    animation: draw-pulse 2.6s ease-in-out infinite;
-  }
-  @keyframes draw-pulse {
-    0%   { stroke-dashoffset: 120; opacity: 0.35; }
-    45%  { stroke-dashoffset: 0;   opacity: 1; }
-    55%  { stroke-dashoffset: 0;   opacity: 1; }
-    100% { stroke-dashoffset: -120; opacity: 0.35; }
-  }
+/* TELEMETRY */
+.telemetry-panel {
+  background: var(--surface);
+  padding: 16px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.tel-section-title {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+.risk-badge {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+.risk-low { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); color: #059669; }
+.risk-moderate { background: rgba(217,119,6,0.08); border: 1px solid rgba(217,119,6,0.25); color: var(--warn); }
+.risk-high { background: rgba(220,38,38,0.08); border: 1px solid rgba(220,38,38,0.25); color: var(--danger); }
 
-  .mode-badge {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.14);
-    padding: 6px 8px 6px 12px;
-    border-radius: 8px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: #cfe0f5;
-    transition: border-color 0.2s, background 0.2s;
-  }
-  .mode-badge:hover { border-color: var(--teal-500); background: rgba(255,255,255,0.1); }
-  .mode-badge .dot {
-    width: 7px; height: 7px; border-radius: 50%;
-    background: var(--teal-500);
-    box-shadow: 0 0 8px var(--teal-500);
-    flex-shrink: 0;
-  }
-  .mode-badge .mode-label { text-transform: uppercase; letter-spacing: 0.06em; }
-  .mode-badge .chip {
-    background: var(--teal-600);
-    color: #fff;
-    font-family: var(--sans);
-    font-weight: 600;
-    font-size: 10px;
-    padding: 2px 7px;
-    border-radius: 20px;
-  }
+.metric-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.metric-box {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+}
+.metric-box .val { font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--teal); }
+.metric-box .key { font-size: 10px; color: var(--muted); margin-top: 2px; }
 
-  /* ================= LAYOUT SHELL ================= */
-  .shell {
-    display: grid;
-    grid-template-columns: 216px 1fr 300px;
-    min-height: 0;
-  }
-  .shell.no-telemetry { grid-template-columns: 216px 1fr; }
+.evidence-item {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--teal);
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+.evidence-item .ev-label { color: var(--teal); font-weight: 600; margin-bottom: 3px; }
 
-  /* ================= NAV ================= */
-  nav.rail {
-    background: var(--navy-950);
-    border-right: 1px solid var(--navy-950);
-    padding: 18px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-  .nav-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
-    border-radius: 8px;
-    color: #a9bcd7;
-    font-size: 13.5px;
-    font-weight: 500;
-    background: transparent;
-    border: 1px solid transparent;
-    text-align: left;
-    width: 100%;
-    transition: background 0.15s, color 0.15s;
-  }
-  .nav-item .ic { width: 18px; text-align: center; font-size: 15px; flex-shrink: 0; }
-  .nav-item:hover { background: rgba(255,255,255,0.07); color: #fff; }
-  .nav-item.active {
-    background: var(--teal-600);
-    color: #fff;
-  }
-  .nav-item.active .ic { filter: none; }
-  .rail-footer {
-    margin-top: auto;
-    font-family: var(--mono);
-    font-size: 10px;
-    color: #5c7196;
-    line-height: 1.6;
-    padding: 10px 12px;
-    border-top: 1px solid rgba(255,255,255,0.1);
-  }
+.audit-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+.audit-key { color: var(--text); }
+.audit-val { color: var(--teal); }
 
-  /* ================= VIEW CONTAINER ================= */
-  main.view { display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
-  .view-section { display: none; flex: 1; min-height: 0; flex-direction: column; }
-  .view-section.active { display: flex; }
+/* V3 AGENT BADGE */
+.agent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  margin-bottom: 4px;
+}
+.agent-badge.tool-used { background: rgba(10,124,110,0.1); color: var(--teal); border: 1px solid rgba(10,124,110,0.2); }
+.agent-badge.no-tool { background: rgba(217,119,6,0.08); color: var(--warn); border: 1px solid rgba(217,119,6,0.2); }
 
-  .view-topbar {
-    border-bottom: 1px solid var(--border);
-    padding: 14px 26px;
-    background: var(--surface-alt);
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-  }
-  .view-topbar h2 {
-    font-family: var(--serif);
-    font-size: 17px;
-    font-weight: 600;
-    color: var(--navy-950);
-    margin-right: auto;
-  }
-  .context-field { display: flex; flex-direction: column; gap: 3px; }
-  .context-field label {
-    font-family: var(--mono);
-    font-size: 9.5px;
-    color: var(--muted);
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-  .context-field input {
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-size: 12.5px;
-    padding: 6px 9px;
-    border-radius: 6px;
-    outline: none;
-    min-width: 190px;
-    transition: border-color 0.15s;
-  }
-  .context-field input:focus { border-color: var(--teal-500); }
-  .session-chip {
-    font-family: var(--mono);
-    font-size: 10.5px;
-    color: var(--teal-700);
-    background: var(--teal-100);
-    border: 1px solid rgba(13,143,130,0.25);
-    padding: 5px 9px;
-    border-radius: 6px;
-  }
+/* DRUG CHECK */
+#screen-drugcheck .drug-check-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  align-content: start;
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+.card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 14px; }
+.form-group { margin-bottom: 14px; }
+.form-label { font-size: 11px; font-weight: 600; color: var(--text-secondary); margin-bottom: 5px; display: block; }
+.form-input {
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 9px 12px;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.form-input:focus { border-color: var(--teal); }
+.form-input::placeholder { color: var(--muted); }
+.btn-primary {
+  width: 100%;
+  background: var(--teal);
+  color: #fff;
+  border: none;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+.btn-primary:hover { opacity: 0.88; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-secondary {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  font-family: var(--sans);
+  font-size: 12px;
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.btn-secondary:hover { border-color: var(--teal); color: var(--teal); }
 
-  /* ================= CHAT (AI Assistant) ================= */
-  #chat-window {
-    flex: 1;
-    overflow-y: auto;
-    padding: 22px 28px;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    scroll-behavior: smooth;
-  }
-  #chat-window::-webkit-scrollbar { width: 6px; }
-  #chat-window::-webkit-scrollbar-track { background: transparent; }
-  #chat-window::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  grid-column: 1 / -1;
+}
+.result-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.result-body { font-size: 13.5px; line-height: 1.7; color: var(--text); }
+.result-body strong { color: var(--teal); }
+.result-disclaimer {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--muted);
+  font-style: italic;
+}
+.fda-evidence-block {
+  margin-top: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--teal);
+  border-radius: 6px;
+  padding: 12px;
+}
+.fda-evidence-block .fda-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--teal);
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.fda-evidence-block .fda-text {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
 
-  .msg { display: flex; gap: 10px; max-width: 780px; }
-  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-  .msg-avatar {
-    width: 30px; height: 30px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; flex-shrink: 0;
-  }
-  .msg.user .msg-avatar { background: var(--navy-900); color: #fff; }
-  .msg.assistant .msg-avatar { background: var(--teal-100); border: 1px solid rgba(13,143,130,0.25); }
-  .msg-bubble {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 12px 15px;
-    font-size: 13.5px;
-    line-height: 1.65;
-    max-width: 660px;
-    box-shadow: var(--shadow-sm);
-  }
-  .msg.user .msg-bubble { background: var(--navy-950); border-color: var(--navy-950); color: #f2f6fb; }
-  .msg-bubble strong { color: var(--teal-700); }
-  .msg.user .msg-bubble strong { color: var(--teal-500); }
-  .msg-bubble .disclaimer {
-    margin-top: 10px; padding-top: 10px;
-    border-top: 1px solid var(--border);
-    font-size: 11px; color: var(--muted); font-style: italic;
-  }
+/* FDA DATABASE */
+#screen-fda .fda-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+.search-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.search-bar input {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.search-bar input:focus { border-color: var(--teal); }
+.search-bar input::placeholder { color: var(--muted); }
+.search-btn {
+  background: var(--teal);
+  color: #fff;
+  border: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 0 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  letter-spacing: 0.06em;
+}
+.fda-results { display: flex; flex-direction: column; gap: 12px; }
+.fda-result-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--teal);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.fda-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.fda-drug-name { font-weight: 600; font-size: 13px; color: var(--text); }
+.fda-score {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--teal);
+  background: var(--teal-dim);
+  border: 1px solid rgba(10,124,110,0.2);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+.fda-result-text {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+.fda-ai-response {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.fda-ai-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 8px;
+}
+.fda-ai-text { font-size: 13.5px; line-height: 1.7; color: var(--text); }
 
-  .welcome-msg { align-self: center; text-align: center; padding: 50px 20px; color: var(--muted); }
-  .welcome-msg .icon { font-size: 42px; margin-bottom: 12px; }
-  .welcome-msg h2 { font-family: var(--serif); font-size: 19px; color: var(--navy-950); margin-bottom: 8px; font-weight: 600; }
-  .welcome-msg p { font-size: 13px; line-height: 1.6; max-width: 380px; margin: 0 auto; }
+/* HISTORY */
+#screen-history .history-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+.history-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.history-count { font-size: 12px; color: var(--muted); }
+.history-list { display: flex; flex-direction: column; gap: 10px; }
+.history-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.history-item:hover { border-color: var(--teal); box-shadow: 0 2px 8px rgba(10,124,110,0.08); }
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.history-time { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.history-type {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--teal-dim);
+  color: var(--teal);
+  text-transform: uppercase;
+}
+.history-query { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+.history-preview { font-size: 11px; color: var(--muted); line-height: 1.4; }
+.history-empty { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 13px; }
 
-  .input-bar {
-    border-top: 1px solid var(--border);
-    padding: 14px 26px;
-    display: flex; gap: 10px;
-    background: var(--surface);
-  }
-  #msg-input {
-    flex: 1;
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    color: var(--text);
-    font-size: 14px;
-    padding: 10px 14px;
-    border-radius: 8px;
-    outline: none;
-    resize: none;
-    height: 44px;
-    line-height: 1.5;
-    transition: border-color 0.2s;
-  }
-  #msg-input:focus { border-color: var(--teal-500); }
-  #msg-input::placeholder { color: var(--muted-2); }
+/* SETTINGS */
+#screen-settings .settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  max-width: 600px;
+}
+.settings-section { margin-bottom: 24px; }
+.settings-section-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-label { font-size: 13px; color: var(--text); }
+.settings-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.toggle-group {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.toggle-btn {
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  transition: all 0.15s;
+}
+.toggle-btn.active { background: var(--teal); color: #fff; }
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+}
+.conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; flex-shrink: 0; }
+.conn-dot.offline { background: #ef4444; }
+.session-info {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--teal);
+  background: var(--teal-dim);
+  border: 1px solid rgba(10,124,110,0.2);
+  padding: 6px 10px;
+  border-radius: 4px;
+  word-break: break-all;
+}
 
-  .btn-primary {
-    background: var(--navy-950);
-    color: #fff;
-    border: none;
-    font-family: var(--mono);
-    font-size: 12px;
-    font-weight: 600;
-    padding: 0 20px;
-    border-radius: 8px;
-    white-space: nowrap;
-    transition: background 0.2s, opacity 0.2s;
-  }
-  .btn-primary:hover { background: var(--teal-700); }
-  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+/* EMPTY STATES */
+.empty-state {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--muted);
+}
+.empty-icon { font-size: 36px; margin-bottom: 12px; }
+.empty-title { font-size: 14px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+.empty-desc { font-size: 12px; line-height: 1.6; }
 
-  .btn-secondary {
-    background: var(--surface);
-    border: 1px solid var(--border-strong);
-    color: var(--navy-800);
-    font-size: 12.5px;
-    font-weight: 500;
-    padding: 8px 14px;
-    border-radius: 8px;
-    transition: border-color 0.15s, color 0.15s;
-  }
-  .btn-secondary:hover { border-color: var(--teal-500); color: var(--teal-700); }
-
-  .thinking { display: flex; gap: 4px; padding: 14px 16px; align-items: center; }
-  .thinking span {
-    width: 6px; height: 6px; border-radius: 50%;
-    background: var(--teal-500);
-    animation: bounce 1.2s ease-in-out infinite;
-  }
-  .thinking span:nth-child(2) { animation-delay: 0.2s; }
-  .thinking span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes bounce { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
-
-  /* ================= GENERIC VIEW BODY (Drug Check / FDA) ================= */
-  .view-body { flex: 1; overflow-y: auto; padding: 24px 28px; }
-  .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 18px;
-    box-shadow: var(--shadow-sm);
-  }
-  .panel + .panel { margin-top: 16px; }
-  .panel h3 {
-    font-family: var(--serif);
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--navy-950);
-    margin-bottom: 4px;
-  }
-  .panel .hint { font-size: 12px; color: var(--muted); margin-bottom: 14px; line-height: 1.5; }
-
-  .drug-check-row { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
-  .field { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 180px; }
-  .field label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
-  .field input {
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    padding: 10px 12px;
-    border-radius: 8px;
-    font-size: 13.5px;
-    color: var(--text);
-    outline: none;
-    transition: border-color 0.15s;
-  }
-  .field input:focus { border-color: var(--teal-500); }
-  .vs-divider {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted-2);
-    padding-bottom: 11px;
-  }
-
-  .result-card { margin-top: 18px; }
-  .result-card .result-head {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap;
-  }
-  .result-card .result-head .q {
-    font-family: var(--mono); font-size: 11px; color: var(--muted-2);
-  }
-  .result-text { font-size: 13.5px; line-height: 1.7; color: var(--text); }
-  .result-text strong { color: var(--teal-700); }
-  .result-text .disclaimer {
-    margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
-    font-size: 11px; color: var(--muted); font-style: italic;
-  }
-
-  .empty-state { color: var(--muted); font-size: 12.5px; padding: 30px 4px; text-align: center; }
-
-  .evidence-list-inline .evidence-item {
-    background: var(--surface-alt);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    padding: 8px 10px;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    line-height: 1.5;
-    margin-bottom: 6px;
-  }
-  .evidence-list-inline .evidence-item span { color: var(--teal-700); }
-
-  /* ================= TELEMETRY ================= */
-  .telemetry {
-    background: var(--surface);
-    border-left: 1px solid var(--border);
-    padding: 20px 16px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .tel-label {
-    font-family: var(--mono); font-size: 10px; color: var(--muted);
-    text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px;
-  }
-  .risk-badge {
-    padding: 9px 12px; border-radius: 6px;
-    font-family: var(--mono); font-size: 12px; font-weight: 600; text-align: center;
-    border: 1px solid transparent;
-  }
-  .risk-low { background: var(--teal-100); border-color: rgba(13,143,130,0.3); color: var(--teal-700); }
-  .risk-moderate { background: var(--amber-100); border-color: rgba(217,119,6,0.3); color: var(--amber-700); }
-  .risk-high { background: var(--red-100); border-color: rgba(192,52,43,0.3); color: var(--red-700); }
-
-  .metric-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .metric-box { background: var(--surface-alt); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
-  .metric-box .val { font-family: var(--mono); font-size: 16px; font-weight: 600; color: var(--teal-700); }
-  .metric-box .key { font-size: 10px; color: var(--muted); margin-top: 2px; }
-
-  .evidence-item {
-    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 6px;
-    padding: 8px 10px; font-family: var(--mono); font-size: 10px; color: var(--muted);
-    line-height: 1.5; margin-bottom: 6px;
-  }
-  .evidence-item span { color: var(--teal-700); }
-
-  .audit-block {
-    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 6px;
-    padding: 10px; font-family: var(--mono); font-size: 10px; color: var(--muted); line-height: 1.8;
-  }
-  .audit-block .audit-key { color: var(--text); }
-  .audit-block .audit-val { color: var(--teal-700); }
-  .tel-note { font-size: 10.5px; color: var(--muted-2); line-height: 1.5; font-style: italic; }
-
-  /* ================= HISTORY ================= */
-  .history-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
-  .history-toolbar select {
-    background: var(--surface-alt); border: 1px solid var(--border); border-radius: 6px;
-    padding: 7px 10px; font-size: 12.5px; color: var(--text); outline: none;
-  }
-  table.history-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  table.history-table th {
-    text-align: left; font-family: var(--mono); font-size: 10px; text-transform: uppercase;
-    letter-spacing: 0.06em; color: var(--muted); padding: 8px 10px; border-bottom: 1px solid var(--border-strong);
-  }
-  table.history-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-  table.history-table tr:hover td { background: var(--surface-alt); }
-  .hist-tag {
-    display: inline-block; font-family: var(--mono); font-size: 9.5px; text-transform: uppercase;
-    padding: 2px 7px; border-radius: 20px; background: var(--navy-950); color: #fff;
-  }
-  .hist-risk { font-family: var(--mono); font-size: 10.5px; font-weight: 600; }
-  .hist-ts { font-family: var(--mono); font-size: 10.5px; color: var(--muted-2); white-space: nowrap; }
-  .hist-q { color: var(--navy-900); font-weight: 500; }
-  .hist-a { color: var(--muted); }
-
-  /* ================= SETTINGS ================= */
-  .settings-grid { display: flex; flex-direction: column; gap: 16px; max-width: 620px; }
-  .mode-options { display: flex; gap: 12px; flex-wrap: wrap; }
-  .mode-option {
-    flex: 1; min-width: 220px; border: 1.5px solid var(--border); border-radius: 10px;
-    padding: 14px; cursor: pointer; transition: border-color 0.15s, background 0.15s;
-    background: var(--surface);
-  }
-  .mode-option:hover { border-color: var(--teal-500); }
-  .mode-option.selected { border-color: var(--navy-950); background: var(--surface-alt); }
-  .mode-option .mo-title { font-family: var(--serif); font-weight: 600; font-size: 14.5px; color: var(--navy-950); display: flex; align-items: center; gap: 8px; }
-  .mode-option .mo-title .radio { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--border-strong); flex-shrink: 0; }
-  .mode-option.selected .mo-title .radio { border-color: var(--teal-600); background: radial-gradient(circle, var(--teal-600) 0 5px, transparent 6px); }
-  .mode-option .mo-desc { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
-  .mode-option .mo-url { font-family: var(--mono); font-size: 10.5px; color: var(--teal-700); margin-top: 8px; }
-
-  .status-row { display: flex; align-items: center; gap: 10px; }
-  .status-pill {
-    font-family: var(--mono); font-size: 11px; padding: 5px 10px; border-radius: 20px;
-    background: var(--surface-alt); border: 1px solid var(--border); color: var(--muted);
-  }
-  .status-pill.ok { background: var(--teal-100); border-color: rgba(13,143,130,0.3); color: var(--teal-700); }
-  .status-pill.bad { background: var(--red-100); border-color: rgba(192,52,43,0.3); color: var(--red-700); }
-
-  .danger-zone { border-color: rgba(192,52,43,0.25); }
-  .danger-zone h3 { color: var(--red-700); }
+/* LOADING */
+.loading-overlay {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--teal-dim);
+  border: 1px solid rgba(10,124,110,0.2);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--teal);
+  font-weight: 500;
+}
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(10,124,110,0.2);
+  border-top-color: var(--teal);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>
 
+<!-- HEADER -->
 <header>
-  <div class="brand">
-    <svg class="pulse-trace" viewBox="0 0 46 28" xmlns="http://www.w3.org/2000/svg">
-      <path d="M0 14 L11 14 L15 4 L20 24 L24 14 L46 14"/>
-    </svg>
-    <div>
-      <h1>Pharmacist CDSS</h1>
-      <div class="sub">Clinical Decision Support</div>
+  <div class="header-brand">
+    <div class="brand-icon">⚕</div>
+    <div class="brand-text">
+      Pharmacist CDSS
+      <span>Clinical Decision Support</span>
     </div>
   </div>
-  <button class="mode-badge" id="mode-badge" onclick="goTo('settings')" title="Change backend mode in Settings">
-    <span class="dot" id="status-dot"></span>
-    <span class="mode-label" id="mode-label">V2 · Clinical</span>
-    <span class="chip">LIVE</span>
-  </button>
+  <div class="header-center">
+    <div class="status-indicator">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-text">Checking...</span>
+    </div>
+    <div class="backend-badge" id="backend-badge" onclick="switchBackend()">V2 · RAG Pipeline</div>
+  </div>
+  <div class="header-right">
+    <div class="pharmacist-mode">PHARMACIST MODE</div>
+  </div>
 </header>
 
-<div class="shell" id="shell">
+<div class="app-body">
 
-  <!-- NAV -->
-  <nav class="rail">
-    <button class="nav-item active" data-view="assistant" onclick="goTo('assistant')"><span class="ic">💬</span>AI Assistant</button>
-    <button class="nav-item" data-view="drugcheck" onclick="goTo('drugcheck')"><span class="ic">⚕</span>Drug Check</button>
-    <button class="nav-item" data-view="fda" onclick="goTo('fda')"><span class="ic">🔎</span>FDA Database</button>
-    <button class="nav-item" data-view="history" onclick="goTo('history')"><span class="ic">🕘</span>History</button>
-    <button class="nav-item" data-view="settings" onclick="goTo('settings')"><span class="ic">⚙</span>Settings</button>
-    <div class="rail-footer">FastAPI · LangGraph<br/>ChromaDB · Gemini</div>
-  </nav>
+<!-- NAV -->
+<nav>
+  <div class="nav-section-label">Clinical Tools</div>
+  <div class="nav-item active" onclick="showScreen('assistant')" id="nav-assistant">
+    <span class="nav-icon">💬</span> AI Assistant
+  </div>
+  <div class="nav-item" onclick="showScreen('drugcheck')" id="nav-drugcheck">
+    <span class="nav-icon">💊</span> Drug Check
+  </div>
+  <div class="nav-item" onclick="showScreen('fda')" id="nav-fda">
+    <span class="nav-icon">🗂</span> FDA Database
+  </div>
 
-  <!-- MAIN VIEWS -->
-  <main class="view">
+  <div class="nav-section-label" style="margin-top:8px;">Session</div>
+  <div class="nav-item" onclick="showScreen('history')" id="nav-history">
+    <span class="nav-icon">📋</span> History
+  </div>
 
-    <!-- AI ASSISTANT -->
-    <section class="view-section active" id="view-assistant">
-      <div class="view-topbar">
-        <h2>AI Assistant</h2>
-        <div class="context-field">
-          <label>Active medications</label>
-          <input id="med-input" type="text" placeholder="e.g. warfarin 5mg, aspirin"/>
+  <div class="nav-section-label" style="margin-top:8px;">System</div>
+  <div class="nav-item" onclick="showScreen('settings')" id="nav-settings">
+    <span class="nav-icon">⚙️</span> Settings
+  </div>
+
+  <div class="nav-footer">
+    For clinical decision support only. Verify against authoritative sources and professional judgment.
+  </div>
+</nav>
+
+<!-- CONTENT -->
+<div class="content">
+
+  <!-- AI ASSISTANT -->
+  <div class="screen active" id="screen-assistant">
+    <div class="chat-area">
+      <div class="page-header">
+        <div>
+          <div class="page-title">AI Assistant</div>
+          <div class="page-subtitle">Ask clinical questions — FDA evidence retrieved automatically</div>
         </div>
-        <div class="session-chip" id="session-display">generating…</div>
-        <button class="btn-secondary" onclick="clearSession()">Clear session</button>
+        <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">Session:</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--teal)" id="session-display">—</span>
+          <button class="btn-secondary" style="padding:5px 10px;font-size:11px" onclick="clearSession()">Clear</button>
+        </div>
       </div>
-      <div id="chat-window">
+      <div class="chat-window" id="chat-window">
         <div class="welcome-msg" id="welcome">
-          <div class="icon">🧬</div>
+          <div class="welcome-icon">🧬</div>
           <h2>Clinical AI ready</h2>
           <p>Ask about drug interactions, contraindications, dosage safety, or patient symptom triage.</p>
+          <div class="quick-queries">
+            <div class="quick-query" onclick="fillQuery('Can warfarin interact with aspirin?')">Warfarin + Aspirin</div>
+            <div class="quick-query" onclick="fillQuery('What are side effects of metformin?')">Metformin side effects</div>
+            <div class="quick-query" onclick="fillQuery('Lisinopril contraindications')">Lisinopril contraindications</div>
+            <div class="quick-query" onclick="fillQuery('Is amiodarone safe long term?')">Amiodarone safety</div>
+          </div>
         </div>
       </div>
       <div class="input-bar">
-        <textarea id="msg-input" placeholder="Describe patient presentation or ask a pharmacy question..." rows="1"></textarea>
-        <button id="send-btn" class="btn-primary" onclick="sendMessage()">SEND →</button>
-      </div>
-    </section>
-
-    <!-- DRUG CHECK -->
-    <section class="view-section" id="view-drugcheck">
-      <div class="view-topbar"><h2>Drug Check</h2></div>
-      <div class="view-body">
-        <div class="panel">
-          <h3>Two-drug interaction check</h3>
-          <p class="hint">Enter two medications to check for interactions. This composes a clinical question and routes it through the same AI Assistant pipeline — it is not a separate lookup API.</p>
-          <div class="drug-check-row">
-            <div class="field">
-              <label>Drug A</label>
-              <input id="drug-a" type="text" placeholder="e.g. warfarin"/>
-            </div>
-            <div class="vs-divider">+</div>
-            <div class="field">
-              <label>Drug B</label>
-              <input id="drug-b" type="text" placeholder="e.g. aspirin"/>
-            </div>
-            <button class="btn-primary" id="drugcheck-btn" onclick="runDrugCheck()">CHECK →</button>
-          </div>
-        </div>
-        <div class="panel result-card" id="drugcheck-result-panel" style="display:none;">
-          <div class="result-head">
-            <span class="q" id="drugcheck-q"></span>
-          </div>
-          <div class="result-text" id="drugcheck-result"></div>
-        </div>
-        <div class="panel" id="drugcheck-empty">
-          <div class="empty-state">No interaction check run yet this session.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- FDA DATABASE -->
-    <section class="view-section" id="view-fda">
-      <div class="view-topbar"><h2>FDA Database</h2></div>
-      <div class="view-body">
-        <div class="panel">
-          <h3>FDA evidence search</h3>
-          <p class="hint">Search the ingested FDA guideline corpus for a medication. This sends a phrased question through the AI Assistant pipeline and surfaces the retrieved evidence sources below — there is no dedicated FDA search endpoint.</p>
-          <div class="drug-check-row">
-            <div class="field" style="flex:2;">
-              <label>Medication</label>
-              <input id="fda-drug" type="text" placeholder="e.g. metformin"/>
-            </div>
-            <button class="btn-primary" id="fda-btn" onclick="runFdaSearch()">SEARCH →</button>
-          </div>
-        </div>
-        <div class="panel result-card" id="fda-result-panel" style="display:none;">
-          <div class="result-head"><span class="q" id="fda-q"></span></div>
-          <div class="result-text" id="fda-result"></div>
-        </div>
-        <div class="panel" id="fda-evidence-panel" style="display:none;">
-          <h3 style="font-size:13px;">Evidence sources</h3>
-          <div class="evidence-list-inline" id="fda-evidence-list"></div>
-        </div>
-        <div class="panel" id="fda-empty">
-          <div class="empty-state">No FDA search run yet this session.</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- HISTORY -->
-    <section class="view-section" id="view-history">
-      <div class="view-topbar">
-        <h2>History</h2>
-        <button class="btn-secondary" onclick="clearHistory()">Clear all history</button>
-      </div>
-      <div class="view-body">
-        <div class="history-toolbar">
-          <select id="history-filter" onchange="renderHistory()">
-            <option value="all">All views</option>
-            <option value="assistant">AI Assistant</option>
-            <option value="drugcheck">Drug Check</option>
-            <option value="fda">FDA Database</option>
-          </select>
-        </div>
-        <div class="panel" style="padding:0; overflow:hidden;">
-          <div id="history-table-wrap"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- SETTINGS -->
-    <section class="view-section" id="view-settings">
-      <div class="view-topbar"><h2>Settings</h2></div>
-      <div class="view-body">
-        <div class="settings-grid">
-
-          <div class="panel">
-            <h3>Backend mode</h3>
-            <p class="hint">Choose which backend the frontend talks to. Both expose <code>POST /chat</code>; response detail differs slightly between the two (see note below).</p>
-            <div class="mode-options">
-              <div class="mode-option" id="mode-opt-v2" onclick="setMode('v2')">
-                <div class="mo-title"><span class="radio"></span>V2 — Clinical</div>
-                <div class="mo-desc">Full clinical pipeline: risk tier, confidence score, detected emotion, evidence sources and audit log.</div>
-                <div class="mo-url">uvicorn app.main_demo:app · :8000</div>
-              </div>
-              <div class="mode-option" id="mode-opt-v3" onclick="setMode('v3')">
-                <div class="mo-title"><span class="radio"></span>V3 — Agentic</div>
-                <div class="mo-desc">LangGraph agent with FDA tool-calling. Returns risk level and tool-call status; no confidence score or audit log.</div>
-                <div class="mo-url">uvicorn app.main_agentic:app · :8001</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="panel">
-            <h3>Connection</h3>
-            <div class="field" style="margin-bottom:10px;">
-              <label>Backend URL override (optional)</label>
-              <input id="custom-url" type="text" placeholder="leave blank to use default port for selected mode"/>
-            </div>
-            <div class="field" style="margin-bottom:10px;">
-              <label>X-API-KEY</label>
-              <input id="api-key-input" type="text" placeholder="prod-secret-fallback-key"/>
-            </div>
-            <div class="status-row">
-              <button class="btn-secondary" onclick="checkStatus()">Test connection</button>
-              <span class="status-pill" id="status-pill">not checked</span>
-            </div>
-          </div>
-
-          <div class="panel danger-zone">
-            <h3>Clear local data</h3>
-            <p class="hint">Removes saved history and settings from this browser only. Backend data (ChromaDB corpus, sessions) is untouched.</p>
-            <button class="btn-secondary" onclick="clearHistory()">Clear history</button>
-          </div>
-
-        </div>
-      </div>
-    </section>
-
-  </main>
-
-  <!-- TELEMETRY (shared across AI Assistant / Drug Check / FDA) -->
-  <div class="telemetry" id="telemetry-panel">
-    <div>
-      <div class="tel-label">Clinical Risk</div>
-      <div class="risk-badge risk-low" id="risk-badge">✅ LOW — No acute triggers</div>
-    </div>
-    <div class="metric-row">
-      <div class="metric-box">
-        <div class="val" id="confidence-val">—</div>
-        <div class="key">Confidence</div>
-      </div>
-      <div class="metric-box">
-        <div class="val" id="emotion-val">—</div>
-        <div class="key">Emotion</div>
+        <textarea id="msg-input" placeholder="Ask a clinical question or describe patient symptoms..." rows="1"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMessage()">SEND →</button>
       </div>
     </div>
-    <div>
-      <div class="tel-label">Evidence Sources</div>
-      <div id="evidence-container"><div style="font-size:11px;color:var(--muted)">Awaiting query...</div></div>
+    <div class="telemetry-panel">
+      <div>
+        <div class="tel-section-title">Clinical Risk</div>
+        <div class="risk-badge risk-low" id="risk-badge">✅ LOW — No acute triggers</div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-box">
+          <div class="val" id="confidence-val">—</div>
+          <div class="key">Confidence</div>
+        </div>
+        <div class="metric-box">
+          <div class="val" id="emotion-val">—</div>
+          <div class="key">Emotion</div>
+        </div>
+      </div>
+      <div>
+        <div class="tel-section-title">FDA Evidence</div>
+        <div id="evidence-container"><div style="font-size:11px;color:var(--muted)">Awaiting query...</div></div>
+      </div>
+      <div>
+        <div class="tel-section-title">Audit Trail</div>
+        <div class="audit-block" id="audit-block">Awaiting data...</div>
+      </div>
     </div>
-    <div>
-      <div class="tel-label">Audit Trail</div>
-      <div class="audit-block" id="audit-block">Awaiting data...</div>
-    </div>
-    <div class="tel-note" id="tel-note"></div>
   </div>
 
-</div>
+  <!-- DRUG CHECK -->
+  <div class="screen" id="screen-drugcheck">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Drug Interaction Check</div>
+        <div class="page-subtitle">Enter one or two drug names to check FDA-verified interactions</div>
+      </div>
+    </div>
+    <div class="drug-check-body">
+      <div class="card">
+        <div class="card-title">Drug Names</div>
+        <div class="form-group">
+          <label class="form-label">Primary Drug</label>
+          <input class="form-input" id="drug1-input" type="text" placeholder="e.g. warfarin"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Second Drug (optional)</label>
+          <input class="form-input" id="drug2-input" type="text" placeholder="e.g. aspirin"/>
+        </div>
+        <button class="btn-primary" id="drugcheck-btn" onclick="runDrugCheck()">Check Interaction →</button>
+      </div>
+      <div class="card">
+        <div class="card-title">Common Checks</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <button class="btn-secondary" onclick="setDrugCheck('warfarin','aspirin')">Warfarin + Aspirin</button>
+          <button class="btn-secondary" onclick="setDrugCheck('warfarin','ibuprofen')">Warfarin + Ibuprofen</button>
+          <button class="btn-secondary" onclick="setDrugCheck('warfarin','amiodarone')">Warfarin + Amiodarone</button>
+          <button class="btn-secondary" onclick="setDrugCheck('metformin','lisinopril')">Metformin + Lisinopril</button>
+          <button class="btn-secondary" onclick="setDrugCheck('atorvastatin','')">Atorvastatin interactions</button>
+        </div>
+      </div>
+      <div class="result-card" id="drugcheck-result" style="display:none">
+        <div class="result-header">
+          <div class="risk-badge risk-low" id="dc-risk-badge" style="flex-shrink:0">—</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--text)" id="dc-drug-title">—</div>
+            <div style="font-size:11px;color:var(--muted)" id="dc-confidence">—</div>
+          </div>
+        </div>
+        <div class="result-body" id="dc-result-body">—</div>
+        <div id="dc-fda-evidence"></div>
+        <div class="result-disclaimer">⚠️ For clinical decision support only. Final decision should be made by a licensed pharmacist or doctor.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FDA DATABASE -->
+  <div class="screen" id="screen-fda">
+    <div class="page-header">
+      <div>
+        <div class="page-title">FDA Database</div>
+        <div class="page-subtitle">Search the FDA drug label corpus — evidence returned directly from ChromaDB</div>
+      </div>
+    </div>
+    <div class="fda-body">
+      <div class="search-bar">
+        <input type="text" id="fda-search-input" placeholder="Search FDA database — e.g. warfarin contraindications..." onkeydown="if(event.key==='Enter') searchFDA()"/>
+        <button class="search-btn" onclick="searchFDA()">SEARCH →</button>
+      </div>
+      <div id="fda-results-container">
+        <div class="empty-state">
+          <div class="empty-icon">🗂</div>
+          <div class="empty-title">FDA corpus ready</div>
+          <div class="empty-desc">806 FDA drug labels indexed. Search to retrieve evidence.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- HISTORY -->
+  <div class="screen" id="screen-history">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Query History</div>
+        <div class="page-subtitle">Previous clinical queries from this session</div>
+      </div>
+    </div>
+    <div class="history-body">
+      <div class="history-controls">
+        <div class="history-count" id="history-count">0 queries</div>
+        <button class="btn-secondary" onclick="clearHistory()">Clear History</button>
+      </div>
+      <div class="history-list" id="history-list">
+        <div class="history-empty">No queries yet. Start asking clinical questions.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="screen" id="screen-settings">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Settings</div>
+        <div class="page-subtitle">Backend configuration and session management</div>
+      </div>
+    </div>
+    <div class="settings-body">
+      <div class="settings-section">
+        <div class="settings-section-title">Backend</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Pipeline Version</div>
+            <div class="settings-desc">V2 = RAG pipeline (port 8000) · V3 = Agentic (port 8001)</div>
+          </div>
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="toggle-v2" onclick="setBackend('v2')">V2</button>
+            <button class="toggle-btn" id="toggle-v3" onclick="setBackend('v3')">V3</button>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Connection Status</div>
+            <div class="settings-desc" id="backend-url-display">http://127.0.0.1:8000</div>
+          </div>
+          <div class="connection-status">
+            <div class="conn-dot" id="conn-dot"></div>
+            <span id="conn-status-text">Checking...</span>
+          </div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Test Connection</div>
+            <div class="settings-desc">Send a ping to the backend</div>
+          </div>
+          <button class="btn-secondary" onclick="testConnection()">Test</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">Session</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Current Session ID</div>
+          </div>
+          <div class="session-info" id="settings-session-id">—</div>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">Clear History</div>
+            <div class="settings-desc">Remove all stored query history</div>
+          </div>
+          <button class="btn-secondary" onclick="clearHistory()">Clear</button>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-label">New Session</div>
+            <div class="settings-desc">Generate a new session ID and clear chat</div>
+          </div>
+          <button class="btn-secondary" onclick="clearSession()">New Session</button>
+        </div>
+      </div>
+      <div class="settings-section">
+        <div class="settings-section-title">About</div>
+        <div class="settings-row">
+          <div class="settings-label">V2 Stack</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">FastAPI · LangGraph · ChromaDB · Gemini 2.5 Flash</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">V3 Stack</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted)">LangGraph Agent · FDA Tool · CrossEncoder</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-label">FDA Corpus</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--teal)">806 drug labels</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /content -->
+</div><!-- /app-body -->
 
 <script>
-  // ============================================================
-  // SETTINGS / STORAGE
-  // ============================================================
-  const DEFAULT_API_KEY = "prod-secret-fallback-key";
-  const MODE_URLS = { v2: "http://localhost:8000", v3: "http://localhost:8001" };
+// ============================================================
+// CONFIG
+// ============================================================
+const API_KEY = "local-test-key";
+let BACKEND_VERSION = 'v2';
+let BACKEND_URL = '';
+let sessionId = crypto.randomUUID();
 
-  function loadSettings() {
-    try {
-      const raw = localStorage.getItem("cdss_settings");
-      if (raw) return JSON.parse(raw);
-    } catch (e) {}
-    return { mode: "v2", customUrl: "", apiKey: DEFAULT_API_KEY };
+// ============================================================
+// NAVIGATION
+// ============================================================
+function showScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  if (name === 'history') renderHistory();
+  if (name === 'settings') {
+    document.getElementById('settings-session-id').textContent = sessionId;
+    checkConnection();
   }
-  function saveSettings(s) { localStorage.setItem("cdss_settings", JSON.stringify(s)); }
+}
 
-  let settings = loadSettings();
+// ============================================================
+// BACKEND SWITCHING
+// ============================================================
+function setBackend(version) {
+  BACKEND_VERSION = version;
+  BACKEND_URL = version === 'v3' ? 'http://127.0.0.1:8001' : '';
+  document.getElementById('toggle-v2').classList.toggle('active', version === 'v2');
+  document.getElementById('toggle-v3').classList.toggle('active', version === 'v3');
+  document.getElementById('backend-url-display').textContent = BACKEND_URL || 'http://127.0.0.1:8000 (same origin)';
+  const badge = document.getElementById('backend-badge');
+  badge.textContent = version === 'v3' ? 'V3 · Agentic' : 'V2 · RAG Pipeline';
+  badge.className = 'backend-badge' + (version === 'v3' ? ' v3' : '');
+  checkConnection();
+}
 
-  function currentBaseUrl() {
-    if (settings.customUrl && settings.customUrl.trim()) return settings.customUrl.trim().replace(/\/$/, "");
-    return MODE_URLS[settings.mode] || MODE_URLS.v2;
-  }
-  function currentApiKey() { return settings.apiKey || DEFAULT_API_KEY; }
+function switchBackend() {
+  setBackend(BACKEND_VERSION === 'v2' ? 'v3' : 'v2');
+}
 
-  function loadHistory() {
-    try {
-      const raw = localStorage.getItem("cdss_history");
-      if (raw) return JSON.parse(raw);
-    } catch (e) {}
-    return [];
-  }
-  function saveHistory(h) { localStorage.setItem("cdss_history", JSON.stringify(h)); }
-  function addHistoryEntry(entry) {
-    const h = loadHistory();
-    h.unshift(entry);
-    saveHistory(h.slice(0, 200));
-    if (document.getElementById("view-history").classList.contains("active")) renderHistory();
-  }
-  function clearHistory() {
-    if (!confirm("Clear all locally stored history? This cannot be undone.")) return;
-    localStorage.removeItem("cdss_history");
-    renderHistory();
-  }
-
-  // ============================================================
-  // NAV
-  // ============================================================
-  const TELEMETRY_VIEWS = new Set(["assistant", "drugcheck", "fda"]);
-  function goTo(view) {
-    document.querySelectorAll(".view-section").forEach(el => el.classList.remove("active"));
-    document.getElementById("view-" + view).classList.add("active");
-    document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === view));
-
-    const shell = document.getElementById("shell");
-    shell.classList.toggle("no-telemetry", !TELEMETRY_VIEWS.has(view));
-    document.getElementById("telemetry-panel").style.display = TELEMETRY_VIEWS.has(view) ? "flex" : "none";
-
-    if (view === "history") renderHistory();
-    if (view === "settings") renderSettingsView();
-  }
-
-  // ============================================================
-  // MODE BADGE / SETTINGS VIEW
-  // ============================================================
-  function renderModeBadge() {
-    const label = settings.mode === "v3" ? "V3 · Agentic" : "V2 · Clinical";
-    document.getElementById("mode-label").textContent = label;
-  }
-  function renderSettingsView() {
-    document.getElementById("mode-opt-v2").classList.toggle("selected", settings.mode === "v2");
-    document.getElementById("mode-opt-v3").classList.toggle("selected", settings.mode === "v3");
-    document.getElementById("custom-url").value = settings.customUrl || "";
-    document.getElementById("api-key-input").value = settings.apiKey || DEFAULT_API_KEY;
-  }
-  function setMode(mode) {
-    settings.mode = mode;
-    saveSettings(settings);
-    renderModeBadge();
-    renderSettingsView();
-    document.getElementById("status-pill").className = "status-pill";
-    document.getElementById("status-pill").textContent = "not checked";
-  }
-  document.getElementById("custom-url").addEventListener?.("input", () => {});
-
-  async function checkStatus() {
-    const pill = document.getElementById("status-pill");
-    pill.className = "status-pill";
-    pill.textContent = "checking…";
-    try {
-      const res = await fetch(currentBaseUrl() + "/", { method: "GET" });
-      if (res.ok) {
-        pill.className = "status-pill ok";
-        pill.textContent = "reachable · " + res.status;
-      } else {
-        pill.className = "status-pill bad";
-        pill.textContent = "error · " + res.status;
-      }
-    } catch (e) {
-      pill.className = "status-pill bad";
-      pill.textContent = "unreachable";
-    }
-  }
-
-  // persist connection fields on change
-  document.getElementById("custom-url").addEventListener("input", e => {
-    settings.customUrl = e.target.value; saveSettings(settings);
-  });
-  document.getElementById("api-key-input").addEventListener("input", e => {
-    settings.apiKey = e.target.value; saveSettings(settings);
-  });
-
-  // ============================================================
-  // CHAT — AI ASSISTANT
-  // ============================================================
-  let sessionId = crypto.randomUUID();
-  document.getElementById("session-display").textContent = sessionId;
-
-  const chatWindow = document.getElementById("chat-window");
-  const msgInput = document.getElementById("msg-input");
-  const sendBtn = document.getElementById("send-btn");
-
-  msgInput.addEventListener("keydown", e => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
-  });
-
-  function clearSession() {
-    sessionId = crypto.randomUUID();
-    document.getElementById("session-display").textContent = sessionId;
-    chatWindow.innerHTML = `<div class="welcome-msg" id="welcome"><div class="icon">🧬</div><h2>Clinical AI ready</h2><p>Ask about drug interactions, contraindications, dosage safety, or patient symptom triage.</p></div>`;
-    resetTelemetry();
-  }
-
-  function resetTelemetry() {
-    document.getElementById("risk-badge").className = "risk-badge risk-low";
-    document.getElementById("risk-badge").textContent = "✅ LOW — No acute triggers";
-    document.getElementById("confidence-val").textContent = "—";
-    document.getElementById("emotion-val").textContent = "—";
-    document.getElementById("evidence-container").innerHTML = `<div style="font-size:11px;color:var(--muted)">Awaiting query...</div>`;
-    document.getElementById("audit-block").textContent = "Awaiting data...";
-    document.getElementById("tel-note").textContent = "";
-  }
-
-  function appendMsg(role, content) {
-    const welcome = document.getElementById("welcome");
-    if (welcome) welcome.remove();
-
-    const div = document.createElement("div");
-    div.className = `msg ${role}`;
-
-    const avatar = document.createElement("div");
-    avatar.className = "msg-avatar";
-    avatar.textContent = role === "user" ? "👤" : "⚕️";
-
-    const bubble = document.createElement("div");
-    bubble.className = "msg-bubble";
-
-    if (role === "assistant") {
-      const parts = content.split("This is AI assistance.");
-      bubble.innerHTML = formatText(parts[0]);
-      if (parts[1] !== undefined) {
-        bubble.innerHTML += `<div class="disclaimer">⚠️ This is AI assistance. Final decision should be made by a licensed pharmacist or doctor.</div>`;
-      }
-    } else {
-      bubble.textContent = content;
-    }
-
-    div.appendChild(avatar);
-    div.appendChild(bubble);
-    chatWindow.appendChild(div);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
-    return div;
-  }
-
-  function formatText(text) {
-    return String(text)
-      .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-      .replace(/\n/g, "<br/>");
-  }
-
-  function showThinking() {
-    const div = document.createElement("div");
-    div.className = "msg assistant";
-    div.id = "thinking-msg";
-    div.innerHTML = `<div class="msg-avatar">⚕️</div><div class="msg-bubble thinking"><span></span><span></span><span></span></div>`;
-    chatWindow.appendChild(div);
-    chatWindow.scrollTop = chatWindow.scrollHeight;
-  }
-  function removeThinking() {
-    const t = document.getElementById("thinking-msg");
-    if (t) t.remove();
-  }
-
-  // ============================================================
-  // SHARED: call /chat and normalize V2 / V3 response shapes
-  // ============================================================
-  async function callChat(message) {
-    const med = document.getElementById("med-input")?.value || "None";
-    const res = await fetch(currentBaseUrl() + "/chat", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-API-KEY": currentApiKey()
-      },
-      body: JSON.stringify({ session_id: sessionId, message: message, medication: med })
+// ============================================================
+// CONNECTION CHECK
+// ============================================================
+async function checkConnection() {
+  const dot = document.getElementById('conn-dot');
+  const txt = document.getElementById('conn-status-text');
+  const sdot = document.getElementById('status-dot');
+  const stxt = document.getElementById('status-text');
+  try {
+    const r = await fetch(BACKEND_URL + '/admin/status', {
+      headers: { 'X-API-KEY': API_KEY }
     });
-    if (!res.ok) {
-      const err = new Error(`Error ${res.status}: ${res.statusText}`);
-      err.status = res.status;
-      throw err;
+    if (r.ok) {
+      dot.className = 'conn-dot';
+      txt.textContent = 'Connected';
+      sdot.className = 'status-dot';
+      stxt.textContent = 'API Live';
+    } else throw new Error();
+  } catch {
+    dot.className = 'conn-dot offline';
+    txt.textContent = 'Offline';
+    sdot.className = 'status-dot offline';
+    stxt.textContent = 'Offline';
+  }
+}
+
+async function testConnection() {
+  await checkConnection();
+}
+
+// ============================================================
+// SESSION
+// ============================================================
+function updateSessionDisplay() {
+  const short = sessionId.substring(0, 8) + '...';
+  document.getElementById('session-display').textContent = short;
+  document.getElementById('settings-session-id').textContent = sessionId;
+}
+
+function clearSession() {
+  sessionId = crypto.randomUUID();
+  updateSessionDisplay();
+  const cw = document.getElementById('chat-window');
+  cw.innerHTML = `
+    <div class="welcome-msg" id="welcome">
+      <div class="welcome-icon">🧬</div>
+      <h2>Clinical AI ready</h2>
+      <p>Ask about drug interactions, contraindications, dosage safety, or patient symptom triage.</p>
+      <div class="quick-queries">
+        <div class="quick-query" onclick="fillQuery('Can warfarin interact with aspirin?')">Warfarin + Aspirin</div>
+        <div class="quick-query" onclick="fillQuery('What are side effects of metformin?')">Metformin side effects</div>
+        <div class="quick-query" onclick="fillQuery('Lisinopril contraindications')">Lisinopril contraindications</div>
+        <div class="quick-query" onclick="fillQuery('Is amiodarone safe long term?')">Amiodarone safety</div>
+      </div>
+    </div>`;
+  document.getElementById('risk-badge').className = 'risk-badge risk-low';
+  document.getElementById('risk-badge').textContent = '✅ LOW — No acute triggers';
+  document.getElementById('confidence-val').textContent = '—';
+  document.getElementById('emotion-val').textContent = '—';
+  document.getElementById('evidence-container').innerHTML = '<div style="font-size:11px;color:var(--muted)">Awaiting query...</div>';
+  document.getElementById('audit-block').textContent = 'Awaiting data...';
+}
+
+// ============================================================
+// AI ASSISTANT
+// ============================================================
+function fillQuery(q) {
+  document.getElementById('msg-input').value = q;
+  document.getElementById('msg-input').focus();
+}
+
+document.getElementById('msg-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+});
+
+function appendMsg(role, content, v3Data) {
+  const welcome = document.getElementById('welcome');
+  if (welcome) welcome.remove();
+
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = role === 'user' ? '👤' : '⚕️';
+
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+
+  if (role === 'assistant') {
+    // V3 agent badge
+    if (v3Data) {
+      const badge = document.createElement('div');
+      badge.className = v3Data.tool_called ? 'agent-badge tool-used' : 'agent-badge no-tool';
+      badge.textContent = v3Data.tool_called ? '🔧 FDA tool used' : '⚡ Direct response';
+      bubble.appendChild(badge);
     }
-    return res.json();
+    const parts = content.split('This is AI assistance.');
+    const textDiv = document.createElement('div');
+    textDiv.innerHTML = formatText(parts[0]);
+    bubble.appendChild(textDiv);
+    if (parts[1] !== undefined) {
+      const disc = document.createElement('div');
+      disc.className = 'disclaimer';
+      disc.textContent = '⚠️ This is AI assistance. Final decision should be made by a licensed pharmacist or doctor.';
+      bubble.appendChild(disc);
+    }
+  } else {
+    bubble.textContent = content;
   }
 
-  // Normalize whatever /chat returns (V2 or V3 shape) into one shape
-  function normalizeResponse(data) {
-    if (settings.mode === "v3") {
-      return {
-        text: data.response || "No response.",
-        risk_level: data.risk_level || "LOW",
-        confidence_score: null,
-        detected_emotions: null,
-        evidence_sources: data.fda_evidence_used ? ["FDA evidence used by agent (tool-called)"] : [],
-        audit_log: {
-          tool_called: data.tool_called,
-          fda_evidence_used: data.fda_evidence_used,
-          latency_ms: data.latency_ms
-        },
-        note: "V3 agentic mode: confidence score, detected emotion and full evidence text are not returned by this backend — only risk level and tool-call status."
-      };
-    }
-    return {
-      text: data.clinical_guidance || "No response.",
-      risk_level: data.risk_level || "LOW",
-      confidence_score: data.confidence_score || "—",
-      detected_emotions: data.detected_emotions || ["neutral"],
-      evidence_sources: data.evidence_sources || [],
-      audit_log: data.audit_log || {},
-      note: ""
-    };
+  div.appendChild(avatar);
+  div.appendChild(bubble);
+  document.getElementById('chat-window').appendChild(div);
+  document.getElementById('chat-window').scrollTop = 99999;
+  return div;
+}
+
+function formatText(text) {
+  if (!text) return '';
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\n/g, '<br/>');
+}
+
+function showThinking() {
+  const div = document.createElement('div');
+  div.className = 'msg assistant';
+  div.id = 'thinking-msg';
+  div.innerHTML = `<div class="msg-avatar">⚕️</div><div class="msg-bubble thinking"><span></span><span></span><span></span></div>`;
+  document.getElementById('chat-window').appendChild(div);
+  document.getElementById('chat-window').scrollTop = 99999;
+}
+
+function removeThinking() {
+  const t = document.getElementById('thinking-msg');
+  if (t) t.remove();
+}
+
+function updateTelemetry(data) {
+  const risk = (data.risk_level || 'LOW').toUpperCase();
+  const badge = document.getElementById('risk-badge');
+  if (risk === 'HIGH') {
+    badge.className = 'risk-badge risk-high';
+    badge.textContent = '🔴 HIGH — Immediate attention required';
+  } else if (risk === 'MODERATE') {
+    badge.className = 'risk-badge risk-moderate';
+    badge.textContent = '🟡 MODERATE — Clinical review recommended';
+  } else {
+    badge.className = 'risk-badge risk-low';
+    badge.textContent = '✅ LOW — No acute triggers';
   }
 
-  function updateTelemetry(norm) {
-    const badge = document.getElementById("risk-badge");
-    if (norm.risk_level === "HIGH") {
-      badge.className = "risk-badge risk-high";
-      badge.textContent = "🚨 HIGH — Immediate validation required";
-    } else if (norm.risk_level === "MODERATE") {
-      badge.className = "risk-badge risk-moderate";
-      badge.textContent = "⚠️ MODERATE — Monitor closely";
+  const conf = data.confidence_score || data.verification_confidence || '—';
+  document.getElementById('confidence-val').textContent = conf;
+  const emotions = data.detected_emotions || [];
+  document.getElementById('emotion-val').textContent = emotions.length ? emotions[0] : '—';
+
+  const evCont = document.getElementById('evidence-container');
+  const sources = data.evidence_sources || [];
+  if (sources.length) {
+    evCont.innerHTML = sources.map(s =>
+      `<div class="evidence-item"><div class="ev-label">FDA Evidence</div>${s}</div>`
+    ).join('');
+  } else {
+    evCont.innerHTML = '<div style="font-size:11px;color:var(--muted)">No FDA evidence retrieved</div>';
+  }
+
+  const audit = data.audit_log || {};
+  const auditEl = document.getElementById('audit-block');
+  if (Object.keys(audit).length) {
+    auditEl.innerHTML = Object.entries(audit).map(([k, v]) =>
+      `<div><span class="audit-key">${k}</span>: <span class="audit-val">${v}</span></div>`
+    ).join('');
+  } else if (data.tool_called !== undefined) {
+    // V3 response
+    auditEl.innerHTML = `
+      <div><span class="audit-key">tool_called</span>: <span class="audit-val">${data.tool_called}</span></div>
+      <div><span class="audit-key">fda_evidence_used</span>: <span class="audit-val">${data.fda_evidence_used}</span></div>
+      <div><span class="audit-key">risk_level</span>: <span class="audit-val">${data.risk_level}</span></div>
+      <div><span class="audit-key">latency_ms</span>: <span class="audit-val">${data.latency_ms}</span></div>`;
+  }
+}
+
+async function sendMessage() {
+  const input = document.getElementById('msg-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true;
+  input.value = '';
+
+  appendMsg('user', msg);
+  showThinking();
+
+  try {
+    const body = { session_id: sessionId, message: msg };
+    const r = await fetch(BACKEND_URL + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    removeThinking();
+
+    // V2 vs V3 response handling
+    let text = data.clinical_guidance || data.response || 'No response received.';
+    try { const p = JSON.parse(text); text = (p.answer || text) + (p.warnings ? '\n\n**Warnings:** ' + p.warnings : ''); } catch(e) {}
+    const v3Data = data.tool_called !== undefined ? data : null;
+    appendMsg('assistant', text, v3Data);
+    updateTelemetry(data);
+    saveToHistory(msg, text, 'assistant');
+  } catch(e) {
+    removeThinking();
+    appendMsg('assistant', 'Connection error — check that the backend is running.');
+  }
+
+  btn.disabled = false;
+  input.focus();
+}
+
+// ============================================================
+// DRUG CHECK
+// ============================================================
+function setDrugCheck(d1, d2) {
+  document.getElementById('drug1-input').value = d1;
+  document.getElementById('drug2-input').value = d2;
+}
+
+async function runDrugCheck() {
+  const d1 = document.getElementById('drug1-input').value.trim();
+  const d2 = document.getElementById('drug2-input').value.trim();
+  if (!d1) { alert('Enter at least one drug name.'); return; }
+
+  const query = d2
+    ? `Can a patient take ${d1} and ${d2} together? What are the drug interactions and any contraindications?`
+    : `What are the drug interactions and contraindications for ${d1}?`;
+
+  const btn = document.getElementById('drugcheck-btn');
+  btn.disabled = true;
+  btn.textContent = 'Checking...';
+
+  const resultCard = document.getElementById('drugcheck-result');
+  resultCard.style.display = 'none';
+
+  try {
+    const r = await fetch(BACKEND_URL + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+      body: JSON.stringify({ session_id: sessionId, message: query })
+    });
+    const data = await r.json();
+
+    let text = data.clinical_guidance || data.response || 'No response.';
+    try { const p = JSON.parse(text); text = (p.answer || text) + (p.warnings ? '\n\n**Warnings:** ' + p.warnings : ''); } catch(e) {}
+    const risk = (data.risk_level || 'LOW').toUpperCase();
+    const conf = data.confidence_score || data.verification_confidence || '—';
+    const sources = data.evidence_sources || [];
+
+    const riskBadge = document.getElementById('dc-risk-badge');
+    riskBadge.className = 'risk-badge risk-' + risk.toLowerCase();
+    riskBadge.textContent = risk === 'HIGH' ? '🔴 HIGH' : risk === 'MODERATE' ? '🟡 MODERATE' : '✅ LOW';
+
+    document.getElementById('dc-drug-title').textContent = d2 ? `${d1} + ${d2}` : d1;
+    document.getElementById('dc-confidence').textContent = `Confidence: ${conf}`;
+
+    const parts = text.split('This is AI assistance.');
+    document.getElementById('dc-result-body').innerHTML = formatText(parts[0]);
+
+    const evEl = document.getElementById('dc-fda-evidence');
+    if (sources.length) {
+      evEl.innerHTML = `<div class="fda-evidence-block">
+        <div class="fda-label">FDA Evidence Sources (${sources.length})</div>
+        ${sources.map(s => `<div class="fda-text" style="margin-bottom:6px">${s}</div>`).join('')}
+      </div>`;
     } else {
-      badge.className = "risk-badge risk-low";
-      badge.textContent = "✅ LOW — No acute triggers";
+      evEl.innerHTML = '';
     }
 
-    document.getElementById("confidence-val").textContent = norm.confidence_score || "N/A";
-    const emo = norm.detected_emotions ? norm.detected_emotions[0] : null;
-    document.getElementById("emotion-val").textContent = emo ? (emo.charAt(0).toUpperCase() + emo.slice(1)) : "N/A";
-
-    const ec = document.getElementById("evidence-container");
-    const sources = norm.evidence_sources || [];
-    if (sources.length > 0) {
-      ec.innerHTML = sources.map((s, i) =>
-        `<div class="evidence-item"><span>SRC ${i+1}:</span> ${escapeHtml(s)}</div>`
-      ).join("");
-    } else {
-      ec.innerHTML = `<div style="font-size:11px;color:var(--muted)">No sources retrieved.</div>`;
-    }
-
-    const log = norm.audit_log || {};
-    const ab = document.getElementById("audit-block");
-    const entries = Object.entries(log).filter(([k, v]) => v !== undefined && v !== null);
-    if (entries.length > 0) {
-      ab.innerHTML = entries.map(([k, v]) =>
-        `<div><span class="audit-key">${escapeHtml(k)}:</span> <span class="audit-val">${escapeHtml(String(v))}</span></div>`
-      ).join("");
-    } else {
-      ab.textContent = "Awaiting data...";
-    }
-
-    document.getElementById("tel-note").textContent = norm.note || "";
+    resultCard.style.display = 'block';
+    saveToHistory(query, text, 'drug-check');
+  } catch(e) {
+    document.getElementById('dc-result-body').textContent = 'Connection error — check that the backend is running.';
+    resultCard.style.display = 'block';
   }
 
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  }
+  btn.disabled = false;
+  btn.textContent = 'Check Interaction →';
+}
 
-  async function sendMessage() {
-    const msg = msgInput.value.trim();
-    if (!msg) return;
+// ============================================================
+// FDA DATABASE
+// ============================================================
+async function searchFDA() {
+  const q = document.getElementById('fda-search-input').value.trim();
+  if (!q) return;
 
-    msgInput.value = "";
-    sendBtn.disabled = true;
-    appendMsg("user", msg);
-    showThinking();
+  const cont = document.getElementById('fda-results-container');
+  cont.innerHTML = `<div class="loading-overlay"><div class="spinner"></div>Searching FDA corpus...</div>`;
 
-    try {
-      const data = await callChat(msg);
-      removeThinking();
-      const norm = normalizeResponse(data);
-      appendMsg("assistant", norm.text);
-      updateTelemetry(norm);
-      addHistoryEntry({
-        id: crypto.randomUUID(), ts: Date.now(), view: "assistant",
-        query: msg, answer: norm.text, risk_level: norm.risk_level
+  try {
+    const r = await fetch(BACKEND_URL + '/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-API-KEY': API_KEY },
+      body: JSON.stringify({ session_id: sessionId, message: q })
+    });
+    const data = await r.json();
+
+    let text = data.clinical_guidance || data.response || '';
+    try { const p = JSON.parse(text); text = (p.answer || text) + (p.warnings ? '\n\n**Warnings:** ' + p.warnings : ''); } catch(e) {}
+    const sources = data.evidence_sources || [];
+
+    let html = '';
+
+    if (text) {
+      const cleanText = text.replace('This is AI assistance. Final decision should be made by a licensed pharmacist or doctor.', '').trim();
+      html += `<div class="fda-ai-response">
+        <div class="fda-ai-label">AI Clinical Summary</div>
+        <div class="fda-ai-text">${formatText(cleanText)}</div>
+        <div style="margin-top:10px;font-size:10px;color:var(--muted);font-style:italic">⚠️ AI-generated summary — verify against FDA source evidence below</div>
+      </div>`;
+    }
+
+    if (sources.length) {
+      html += `<div class="fda-results">`;
+      sources.forEach((s, i) => {
+        const drugMatch = s.match(/Drug: ([^|]+)/);
+        const drugName = drugMatch ? drugMatch[1].trim() : `Evidence ${i+1}`;
+        html += `<div class="fda-result-card">
+          <div class="fda-result-header">
+            <div class="fda-drug-name">${drugName}</div>
+            <div class="fda-score">FDA Corpus</div>
+          </div>
+          <div class="fda-result-text">${s}</div>
+        </div>`;
       });
-    } catch (err) {
-      removeThinking();
-      appendMsg("assistant", err.status ? err.message : "Connection error. Please try again.");
+      html += `</div>`;
+    } else if (!text) {
+      html = `<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">No evidence found</div><div class="empty-desc">Try a different drug name or clinical term.</div></div>`;
     }
 
-    sendBtn.disabled = false;
-    msgInput.focus();
+    cont.innerHTML = html;
+  } catch(e) {
+    cont.innerHTML = `<div class="empty-state"><div class="empty-icon">⚠️</div><div class="empty-title">Connection error</div><div class="empty-desc">Check that the backend is running.</div></div>`;
+  }
+}
+
+// ============================================================
+// HISTORY
+// ============================================================
+function saveToHistory(query, response, type) {
+  const history = getHistory();
+  history.unshift({
+    id: crypto.randomUUID(),
+    query,
+    response,
+    type,
+    timestamp: new Date().toISOString()
+  });
+  localStorage.setItem('cdss_history', JSON.stringify(history.slice(0, 100)));
+}
+
+function getHistory() {
+  try { return JSON.parse(localStorage.getItem('cdss_history') || '[]'); } catch { return []; }
+}
+
+function clearHistory() {
+  localStorage.removeItem('cdss_history');
+  renderHistory();
+}
+
+function renderHistory() {
+  const history = getHistory();
+  const list = document.getElementById('history-list');
+  const count = document.getElementById('history-count');
+  count.textContent = `${history.length} quer${history.length !== 1 ? 'ies' : 'y'}`;
+
+  if (!history.length) {
+    list.innerHTML = '<div class="history-empty">No queries yet. Start asking clinical questions.</div>';
+    return;
   }
 
-  // ============================================================
-  // DRUG CHECK
-  // ============================================================
-  async function runDrugCheck() {
-    const a = document.getElementById("drug-a").value.trim();
-    const b = document.getElementById("drug-b").value.trim();
-    if (!a || !b) { alert("Enter both drug names."); return; }
+  list.innerHTML = history.map(item => {
+    const date = new Date(item.timestamp);
+    const timeStr = date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+    const dateStr = date.toLocaleDateString([], {month:'short', day:'numeric'});
+    const preview = (item.response || '').replace(/<[^>]*>/g, '').substring(0, 100) + '...';
+    return `<div class="history-item" onclick="loadHistory('${item.id}')">
+      <div class="history-meta">
+        <div class="history-time">${dateStr} ${timeStr}</div>
+        <div class="history-type">${item.type || 'query'}</div>
+      </div>
+      <div class="history-query">${item.query.substring(0, 80)}${item.query.length > 80 ? '...' : ''}</div>
+      <div class="history-preview">${preview}</div>
+    </div>`;
+  }).join('');
+}
 
-    const question = `Does ${a} interact with ${b}?`;
-    const btn = document.getElementById("drugcheck-btn");
-    btn.disabled = true; btn.textContent = "CHECKING…";
-    document.getElementById("drugcheck-empty").style.display = "none";
+function loadHistory(id) {
+  const history = getHistory();
+  const item = history.find(h => h.id === id);
+  if (!item) return;
+  showScreen('assistant');
+  document.getElementById('msg-input').value = item.query;
+}
 
-    try {
-      const data = await callChat(question);
-      const norm = normalizeResponse(data);
-      document.getElementById("drugcheck-result-panel").style.display = "block";
-      document.getElementById("drugcheck-q").textContent = `"${question}"`;
-      document.getElementById("drugcheck-result").innerHTML = formatText(norm.text);
-      updateTelemetry(norm);
-      addHistoryEntry({
-        id: crypto.randomUUID(), ts: Date.now(), view: "drugcheck",
-        query: question, answer: norm.text, risk_level: norm.risk_level
-      });
-    } catch (err) {
-      document.getElementById("drugcheck-result-panel").style.display = "block";
-      document.getElementById("drugcheck-q").textContent = `"${question}"`;
-      document.getElementById("drugcheck-result").textContent = err.status ? err.message : "Connection error. Please try again.";
-    }
-
-    btn.disabled = false; btn.textContent = "CHECK →";
-  }
-
-  // ============================================================
-  // FDA DATABASE
-  // ============================================================
-  async function runFdaSearch() {
-    const drug = document.getElementById("fda-drug").value.trim();
-    if (!drug) { alert("Enter a medication name."); return; }
-
-    const question = `FDA guidance on ${drug}`;
-    const btn = document.getElementById("fda-btn");
-    btn.disabled = true; btn.textContent = "SEARCHING…";
-    document.getElementById("fda-empty").style.display = "none";
-
-    try {
-      const data = await callChat(question);
-      const norm = normalizeResponse(data);
-      document.getElementById("fda-result-panel").style.display = "block";
-      document.getElementById("fda-q").textContent = `"${question}"`;
-      document.getElementById("fda-result").innerHTML = formatText(norm.text);
-
-      const evPanel = document.getElementById("fda-evidence-panel");
-      const evList = document.getElementById("fda-evidence-list");
-      if (norm.evidence_sources && norm.evidence_sources.length > 0) {
-        evPanel.style.display = "block";
-        evList.innerHTML = norm.evidence_sources.map((s, i) =>
-          `<div class="evidence-item"><span>SRC ${i+1}:</span> ${escapeHtml(s)}</div>`
-        ).join("");
-      } else {
-        evPanel.style.display = "none";
-      }
-
-      updateTelemetry(norm);
-      addHistoryEntry({
-        id: crypto.randomUUID(), ts: Date.now(), view: "fda",
-        query: question, answer: norm.text, risk_level: norm.risk_level
-      });
-    } catch (err) {
-      document.getElementById("fda-result-panel").style.display = "block";
-      document.getElementById("fda-q").textContent = `"${question}"`;
-      document.getElementById("fda-result").textContent = err.status ? err.message : "Connection error. Please try again.";
-    }
-
-    btn.disabled = false; btn.textContent = "SEARCH →";
-  }
-
-  // ============================================================
-  // HISTORY VIEW
-  // ============================================================
-  const VIEW_LABELS = { assistant: "AI Assistant", drugcheck: "Drug Check", fda: "FDA Database" };
-  function renderHistory() {
-    const filter = document.getElementById("history-filter").value;
-    const items = loadHistory().filter(h => filter === "all" || h.view === filter);
-    const wrap = document.getElementById("history-table-wrap");
-
-    if (items.length === 0) {
-      wrap.innerHTML = `<div class="empty-state">No history yet. Queries from AI Assistant, Drug Check and FDA Database are logged here locally.</div>`;
-      return;
-    }
-
-    const rows = items.map(h => {
-      const riskColor = h.risk_level === "HIGH" ? "var(--red-700)" : h.risk_level === "MODERATE" ? "var(--amber-700)" : "var(--teal-700)";
-      const snippet = (h.answer || "").replace(/\s+/g, " ").slice(0, 140);
-      return `<tr>
-        <td class="hist-ts">${new Date(h.ts).toLocaleString()}</td>
-        <td><span class="hist-tag">${VIEW_LABELS[h.view] || h.view}</span></td>
-        <td class="hist-q">${escapeHtml(h.query)}</td>
-        <td class="hist-a">${escapeHtml(snippet)}${(h.answer || "").length > 140 ? "…" : ""}</td>
-        <td class="hist-risk" style="color:${riskColor}">${escapeHtml(h.risk_level || "—")}</td>
-      </tr>`;
-    }).join("");
-
-    wrap.innerHTML = `<table class="history-table">
-      <thead><tr><th>Time</th><th>View</th><th>Query</th><th>Response</th><th>Risk</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-  }
-
-  // ============================================================
-  // INIT
-  // ============================================================
-  renderModeBadge();
-  resetTelemetry();
+// ============================================================
+// INIT
+// ============================================================
+updateSessionDisplay();
+checkConnection();
+setInterval(checkConnection, 30000);
 </script>
 </body>
 </html>
