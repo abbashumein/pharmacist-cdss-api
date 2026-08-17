@@ -9,6 +9,7 @@ from fastapi import FastAPI, Depends, HTTPException, status, Security, Backgroun
 from fastapi.security.api_key import APIKeyHeader
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import ToolNode
@@ -27,6 +28,25 @@ load_dotenv(override=True)
 # ============================================================
 
 app = FastAPI(title="Pharmacist CDSS — Agentic V3")
+
+# Allow the static frontend (served from V2 on :8000, or from this app on
+# :8001) to call this API directly from the browser when the user switches
+# modes in Settings. Additive only — does not change any existing route.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000", "http://localhost:8001", "http://127.0.0.1:8001"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/")
+async def serve_frontend():
+    return FileResponse("static/index.html")
+
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
