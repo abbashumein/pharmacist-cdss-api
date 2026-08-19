@@ -70,6 +70,12 @@ Both versions retrieve real FDA drug records (806 labels) and generate structure
 **FDA Evidence Search — Direct ChromaDB Retrieval**
 ![FDA Evidence Search](screenshots/FDA_Database_2.PNG)
 
+**V2 — RAG Pipeline: Clinical Query Response**
+![V2 AI Assistant](screenshots/AI_Assitant_Prompt_2_response.PNG)
+
+**V3 — Agentic Pipeline: Tool-Calling Clinical Response**
+![V3 Agentic Assistant](screenshots/v3-agentic-atorvastatin-contraindications-test2.PNG)
+
 ## Problem Statement
 
 Pharmacists in high-volume settings make 50+ drug interaction checks daily under time pressure. Errors in drug interaction assessment contribute to 1.5 million patient injuries annually in the US. Existing tools are either too slow, too generic, or not grounded in verified FDA data.
