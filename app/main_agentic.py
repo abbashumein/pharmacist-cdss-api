@@ -120,20 +120,47 @@ def rewrite_clinical_query(query: str) -> str:
     return query
 
 
-def check_fda_database(query: str) -> str:
-    """
-    Agent tool for searching the FDA clinical knowledge corpus.
+# ============================================================
+# FDA DATABASE TOOL  (upgraded – mirrors V2 TIER 0)
+# ============================================================
 
-    Pipeline:
-        query rewriting -> ChromaDB retrieval -> CrossEncoder reranking
+SIMILARITY_THRESHOLD = 0.95   # same value V2 uses (distance)
+
+def rewrite_clinical_query(query: str) -> str:
+    """Keep existing logic – it is already decent."""
+    lower_query = query.lower()
+    found_drugs = [drug for drug in TARGET_DRUGS if drug in lower_query]
+    intent_keywords = []
+    if any(w in lower_query for w in ["interaction", "interact", "safe", "together", "combine", "mix"]):
+        intent_keywords.append("drug interaction")
+    if any(w in lower_query for w in ["contraindication", "contraindications", "avoid", "cannot", "should not"]):
+        intent_keywords.append("contraindication")
+    if any(w in lower_query for w in ["side effect", "side effects", "adverse", "reaction", "reactions"]):
+        intent_keywords.append("adverse reactions side effects")
+    if any(w in lower_query for w in ["dose", "dosage", "how much", "mg"]):
+        intent_keywords.append("dosage administration")
+    if any(w in lower_query for w in ["warning", "warnings", "danger"]):
+        intent_keywords.append("warnings")
+    if found_drugs:
+        return " ".join(found_drugs + intent_keywords)
+    return query
+
+
+def check_fda_database(query: str) -> Dict[str, Any]:
+    """
+    Returns a structured dict the agent can reason over.
+    Key fields:
+      - has_usable_evidence: bool
+      - retrieval_distance: float | None
+      - evidence_text: str          (human-readable for the prompt)
+      - chunks: list[str]           (raw)
     """
     try:
         search_query = rewrite_clinical_query(query)
 
-        fresh_collection = chroma_client.get_or_create_collection(name="langchain")
         db_results = collection.query(
             query_texts=[search_query],
-            n_results=5,
+            n_results=8,                       # retrieve a bit more, then filter
             include=["documents", "distances"]
         )
 
@@ -141,36 +168,65 @@ def check_fda_database(query: str) -> str:
         distances = db_results.get("distances", [[]])[0]
 
         if not documents:
-            return "No relevant FDA evidence was found."
+            return {
+                "has_usable_evidence": False,
+                "retrieval_distance": None,
+                "evidence_text": "No relevant FDA evidence was found.",
+                "chunks": []
+            }
 
-        # Rerank retrieved evidence using the Phase 5 CrossEncoder.
-        pairs = [[search_query, document] for document in documents]
+        # Rerank
+        pairs = [[search_query, doc] for doc in documents]
         scores = reranker.predict(pairs)
-
         ranked = sorted(
             zip(scores, documents, distances),
-            key=lambda item: item[0],
+            key=lambda x: x[0],
             reverse=True
         )
 
-        evidence = []
+        # Apply the same threshold V2 uses
+        usable = [
+            (score, doc, dist)
+            for score, doc, dist in ranked
+            if dist < SIMILARITY_THRESHOLD
+        ]
 
-        for rank, (score, document, distance) in enumerate(ranked, start=1):
-            evidence.append(
-                f"Evidence {rank} "
-                f"(reranker_score={score:.4f}, "
-                f"vector_distance={distance:.4f}):\n"
-                f"{document}"
+        if not usable:
+            return {
+                "has_usable_evidence": False,
+                "retrieval_distance": min(distances) if distances else None,
+                "evidence_text": "No sufficiently relevant FDA evidence found for this query.",
+                "chunks": []
+            }
+
+        # Keep top 5 usable
+        usable = usable[:5]
+        best_distance = min(d for _, _, d in usable)
+
+        evidence_lines = []
+        for rank, (score, doc, dist) in enumerate(usable, 1):
+            evidence_lines.append(
+                f"Evidence {rank} (reranker={score:.4f}, distance={dist:.4f}):\n{doc}"
             )
 
-        return (
-            f"FDA database search query: {search_query}\n\n"
-            + "\n\n".join(evidence)
-        )
+        return {
+            "has_usable_evidence": True,
+            "retrieval_distance": best_distance,
+            "evidence_text": (
+                f"FDA database search query: {search_query}\n\n"
+                + "\n\n".join(evidence_lines)
+            ),
+            "chunks": [doc for _, doc, _ in usable]
+        }
 
     except Exception as e:
         sys_logger.error(f"FDA tool error: {str(e)}")
-        return "FDA database lookup failed."
+        return {
+            "has_usable_evidence": False,
+            "retrieval_distance": None,
+            "evidence_text": "FDA database lookup failed.",
+            "chunks": []
+        }
 
 
 # ============================================================
@@ -180,7 +236,9 @@ def check_fda_database(query: str) -> str:
 class AgentState(BaseModel):
     session_id: str
     messages: List[Dict[str, Any]] = []
-    fda_evidence: str = ""
+    fda_evidence: str = ""                  # human-readable text for prompt
+    has_usable_evidence: bool = False       # NEW
+    retrieval_distance: Optional[float] = None  # NEW
     final_response: str = ""
     tool_called: bool = False
     risk_level: str = "LOW"
@@ -193,63 +251,101 @@ class AgentState(BaseModel):
 AGENT_SYSTEM_PROMPT = """You are a professional Pharmacist AI Assistant.
 You have access to an FDA drug database tool.
 
-RULES:
-- For any drug-related query: ALWAYS call check_fda_database first
-- For out-of-scope queries (weather, stocks, poems): respond directly without calling the tool
-- Answer ONLY using FDA evidence retrieved by the tool
-- If FDA evidence is insufficient, say "I don't have sufficient FDA data for this query"
-- Always end with: "This is AI assistance. Final decision should be made by a licensed pharmacist or doctor."
+CRITICAL RULES (never break):
+1. For any drug-related query: ALWAYS call the FDA tool first.
+2. Answer ONLY from the FDA evidence that is provided.
+3. If has_usable_evidence is False, or the evidence does not explicitly discuss the asked interaction / topic, you MUST reply with exactly:
+   "I don't have sufficient FDA data for this query."
+4. Do NOT infer an interaction just because two drug names appear in the question.
+5. At the very end of your response (after the clinical text) emit one machine-readable line:
+   RISK_LEVEL: LOW
+   or
+   RISK_LEVEL: MODERATE
+   or
+   RISK_LEVEL: HIGH
+   This line will be stripped before showing the answer to the user.
+6. Always end the visible answer with:
+   "This is AI assistance. Final decision should be made by a licensed pharmacist or doctor."
 """
 
 
+def tool_node(state: AgentState) -> Dict[str, Any]:
+    """Execute FDA database tool and store structured result."""
+    user_message = state.messages[-1]["content"] if state.messages else ""
+    result = check_fda_database(user_message)
+
+    return {
+        "fda_evidence": result["evidence_text"],
+        "has_usable_evidence": result["has_usable_evidence"],
+        "retrieval_distance": result["retrieval_distance"],
+        "tool_called": True
+    }
+
+
 def agent_node(state: AgentState) -> Dict[str, Any]:
-    """Gemini decides whether to call FDA tool or respond directly."""
+    """Gemini decides whether to call FDA tool or respond."""
     user_message = state.messages[-1]["content"] if state.messages else ""
 
-    # Check if query needs FDA tool
     lower_query = user_message.lower()
-    drug_keywords = TARGET_DRUGS + ["drug", "medication", "medicine", "dose",
-                                    "interaction", "side effect", "contraindication"]
+    drug_keywords = TARGET_DRUGS + [
+        "drug", "medication", "medicine", "dose",
+        "interaction", "side effect", "contraindication"
+    ]
     needs_fda = any(word in lower_query for word in drug_keywords)
 
+    # First pass → request the tool
     if needs_fda and not state.tool_called:
-        # Signal tool call needed
         return {"fda_evidence": "TOOL_NEEDED", "tool_called": False}
 
-    # Generate final response using FDA evidence
+    # Second pass → we already have evidence (or the tool said none)
     context = state.fda_evidence if state.fda_evidence and state.fda_evidence != "TOOL_NEEDED" else "No FDA evidence retrieved."
 
+    # Inject the same confidence signal V2 uses
+    signal = (
+        f"RETRIEVAL CONFIDENCE SIGNAL: "
+        f"has_usable_evidence={state.has_usable_evidence}, "
+        f"best_distance={state.retrieval_distance}"
+    )
+
     prompt = f"""{AGENT_SYSTEM_PROMPT}
+
+{signal}
 
 FDA EVIDENCE:
 {context}
 
 USER QUERY: {user_message}
 
-Respond with a clear clinical answer."""
+Respond with a clear clinical answer and the RISK_LEVEL line."""
 
     try:
         response = ai_client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt
         )
-        final = response.text.strip()
+        raw = response.text.strip()
     except Exception as e:
         sys_logger.critical(f"Gemini error: {str(e)}")
-        final = "Sorry, I am temporarily unable to respond. Please try again."
+        raw = "Sorry, I am temporarily unable to respond. Please try again.\nRISK_LEVEL: LOW"
 
-    # Determine risk level
-    risk = "HIGH" if any(w in final.lower() for w in ["dangerous", "fatal", "lethal", "emergency"]) else \
-        "MODERATE" if any(w in final.lower() for w in ["caution", "warning", "risk", "avoid"]) else "LOW"
+    # Parse RISK_LEVEL marker and clean the visible answer
+    risk_match = re.search(r"RISK_LEVEL:\s*(LOW|MODERATE|HIGH)", raw, re.IGNORECASE)
+    risk = risk_match.group(1).upper() if risk_match else "LOW"
 
-    return {"final_response": final, "risk_level": risk}
+    # Remove the marker from what the user sees
+    clean = re.sub(r"\s*RISK_LEVEL:\s*(LOW|MODERATE|HIGH)\s*", "", raw, flags=re.IGNORECASE).strip()
 
+    # Hard guardrail: no usable evidence → never claim HIGH + force insufficient message
+    if not state.has_usable_evidence:
+        if "sufficient FDA data" not in clean.lower():
+            clean = "I don't have sufficient FDA data for this query.\n\nThis is AI assistance. Final decision should be made by a licensed pharmacist or doctor."
+        if risk == "HIGH":
+            risk = "MODERATE"          # or "LOW" / "UNKNOWN" – match your clinical policy
 
-def tool_node(state: AgentState) -> Dict[str, Any]:
-    """Execute FDA database tool."""
-    user_message = state.messages[-1]["content"] if state.messages else ""
-    evidence = check_fda_database(user_message)
-    return {"fda_evidence": evidence, "tool_called": True}
+    return {
+        "final_response": clean,
+        "risk_level": risk
+    }
 
 
 def should_call_tool(state: AgentState) -> str:
@@ -326,12 +422,13 @@ async def agent_chat(payload: AgentChatRequest):
 
     output = cdss_agent.invoke(initial_state, config)
 
-    fda_evidence = output.get("fda_evidence", "")
+    # Now correctly reflects usable evidence, not just “tool ran”
     return {
         "session_id": payload.session_id,
         "response": output.get("final_response", "Unable to process request."),
-        "fda_evidence_used": bool(fda_evidence) and fda_evidence != "TOOL_NEEDED",
+        "fda_evidence_used": output.get("has_usable_evidence", False),   # ← fixed
         "tool_called": output.get("tool_called", False),
         "risk_level": output.get("risk_level", "LOW"),
+        "retrieval_distance": output.get("retrieval_distance"),
         "latency_ms": round((time.time() - request_start) * 1000)
     }
