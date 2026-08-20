@@ -383,7 +383,7 @@ RAG or Agentic Retrieval Layer
 | Out-of-Scope Rejection | Not tested | 100% (3/3) | 100% (4/4) |
 | Tool Routing Accuracy | N/A | N/A | 100% (20/20) |
 | Grounded Responses | N/A | N/A | 90% (18/20) |
-| Records in ChromaDB | 19 FDA labels | 444 FDA labels | 806 FDA labels |
+| Records in ChromaDB | 19 FDA labels | 444 FDA labels | 834 FDA labels |
 | Embedding Model | Gemini cloud API | Local all-MiniLM-L6-v2 | Local all-MiniLM-L6-v2 |
 | Reranker | None | CrossEncoder | CrossEncoder |
 | Similarity Threshold | None | 0.95 cosine distance | 0.95 cosine distance |
