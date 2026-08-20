@@ -124,74 +124,119 @@ class LLMResponse(BaseModel):
 
 def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
     user_msg = state.current_query
+
     clinical_keywords = ["patient", "symptom", "fever", "cough", "pain", "feeling", "depressed", "anxiety", "worried",
                          "taking", "drug", "medication", "dose", "warfarin", "amiodarone", "aspirin", "ibuprofen",
                          "can i add", "interaction", "safe to", "mg"]
     is_clinical = any(word in user_msg.lower() for word in clinical_keywords)
 
-    evidence = []
+    found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen",
+                                     "metformin", "lisinopril", "atorvastatin", "omeprazole",
+                                     "amlodipine", "metoprolol", "levothyroxine", "albuterol"] if
+                   word in user_msg.lower()]
+
+    # Prioritize important prescription drugs
+    priority_drugs = ["warfarin", "amiodarone", "metformin", "lisinopril", "atorvastatin", "metoprolol"]
+    found_drugs = sorted(found_drugs, key=lambda d: 0 if d in priority_drugs else 1)
+
     try:
-        search_query = user_msg
-        found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen",
-                                         "metformin", "lisinopril", "atorvastatin", "omeprazole",
-                                         "amlodipine", "metoprolol", "levothyroxine", "albuterol"] if
-                       word in user_msg.lower()]
+        all_docs = []
+        all_dists = []
 
-        if found_drugs:
-            # Query rewriting — extract drug names + clinical intent keywords
-            intent_keywords = []
-            if any(word in user_msg.lower() for word in ["interaction", "safe", "together", "combine", "mix"]):
-                intent_keywords.append("drug interaction")
-            if any(word in user_msg.lower() for word in ["contraindication", "avoid", "cannot", "should not"]):
-                intent_keywords.append("contraindication")
-            if any(word in user_msg.lower() for word in ["side effect", "adverse", "reaction", "symptom"]):
-                intent_keywords.append("adverse reactions side effects")
+        if len(found_drugs) >= 2:
+            # Search each of the top 2 drugs separately
+            for drug in found_drugs[:2]:
+                drug_query = f"{drug} drug interaction contraindication warnings"
+                dr = collection.query(
+                    query_texts=[drug_query],
+                    n_results=3,
+                    include=["documents", "distances"]
+                )
+                all_docs.extend(dr.get("documents", [[]])[0])
+                all_dists.extend(dr.get("distances", [[]])[0])
 
-            drug_string = " ".join(found_drugs)
-            intent_string = " ".join(intent_keywords)
-            search_query = f"{drug_string} {intent_string}".strip()
+            # Combined query as backup
+            combined_query = " ".join(found_drugs) + " drug interaction"
+            combined = collection.query(
+                query_texts=[combined_query],
+                n_results=2,
+                include=["documents", "distances"]
+            )
+            all_docs.extend(combined.get("documents", [[]])[0])
+            all_dists.extend(combined.get("distances", [[]])[0])
+        else:
+            search_query = user_msg
+            if found_drugs:
+                search_query = f"{found_drugs[0]} drug interaction contraindication warnings"
 
-        db_results = collection.query(query_texts=[search_query], n_results=2, include=["documents", "distances"])
-        distances = db_results.get('distances', [[]])[0]
-        documents = db_results.get('documents', [[]])[0]
+            dr = collection.query(
+                query_texts=[search_query],
+                n_results=4,
+                include=["documents", "distances"]
+            )
+            all_docs = dr.get("documents", [[]])[0]
+            all_dists = dr.get("distances", [[]])[0]
 
+        # Deduplicate
+        seen = set()
+        documents = []
+        distances = []
+        for doc, dist in zip(all_docs, all_dists):
+            if doc not in seen:
+                seen.add(doc)
+                documents.append(doc)
+                distances.append(dist)
+
+        # ========== Prefer chunks that mention BOTH drugs ==========
+        if len(found_drugs) >= 2 and documents:
+            primary, secondary = found_drugs[0], found_drugs[1]
+            boosted_docs = []
+            boosted_dists = []
+            normal_docs = []
+            normal_dists = []
+
+            for doc, dist in zip(documents, distances):
+                doc_lower = doc.lower()
+                if primary in doc_lower and secondary in doc_lower:
+                    boosted_docs.append(doc)
+                    boosted_dists.append(dist * 0.75)  # boost
+                else:
+                    normal_docs.append(doc)
+                    normal_dists.append(dist)
+
+            documents = boosted_docs + normal_docs
+            distances = boosted_dists + normal_dists
+
+        # Apply threshold + rerank
         SIMILARITY_THRESHOLD = 0.95
 
         if documents and distances and min(distances) < SIMILARITY_THRESHOLD:
-            # Rerank retrieved chunks
-            pairs = [[search_query, doc] for doc in documents]
+            pairs = [[user_msg, doc] for doc in documents]
             scores = reranker.predict(pairs)
-            ranked = sorted(zip(scores, documents), reverse=True)
-            retrieved = [doc for _, doc in ranked]
-            evidence = [f"ChromaDB Guidelines Chunk: {r[:120]}..." for r in retrieved]
+            ranked = sorted(zip(scores, documents, distances), key=lambda x: x[0], reverse=True)
+
+            retrieved = [doc for _, doc, _ in ranked[:4]]
+            evidence = [f"ChromaDB Guidelines Chunk: {r[:140]}..." for r in retrieved]
             min_distance = round(min(distances), 4)
         else:
             retrieved = ["No sufficiently relevant FDA evidence found for this query."]
             evidence = []
-            min_distance = round(min(distances), 4) if distances and len(distances) > 0 else None
-
-        return {"is_clinical": is_clinical, "retrieved_context": retrieved, "evidence_sources": evidence,
-                "retrieval_distance": min_distance}
-
-
-    except Exception as e:
-
-        sys_logger.error(f"Vector Database lookup error: {str(e)}")
-
-        retrieved = ["Database lookup failed."]
-
-        evidence = []
+            min_distance = round(min(distances), 4) if distances else None
 
         return {
-
             "is_clinical": is_clinical,
-
             "retrieved_context": retrieved,
-
             "evidence_sources": evidence,
+            "retrieval_distance": min_distance
+        }
 
+    except Exception as e:
+        sys_logger.error(f"Vector Database lookup error: {str(e)}")
+        return {
+            "is_clinical": is_clinical,
+            "retrieved_context": ["Database lookup failed."],
+            "evidence_sources": [],
             "retrieval_distance": None
-
         }
 
 
@@ -332,7 +377,8 @@ def run_ingest():
         ]
         records = []
         for drug_name in target_drugs:
-            url = f"https://api.fda.gov/drug/label.json?search=openfda.generic_name:{drug_name}&limit=10"
+            limit = 20 if drug_name in ["warfarin", "amiodarone", "metformin", "ibuprofen"] else 10
+            url = f"https://api.fda.gov/drug/label.json?search=openfda.generic_name:{drug_name}&limit={limit}"
             try:
                 with urllib.request.urlopen(url, timeout=30) as r:
                     data = json.loads(r.read().decode())
@@ -417,17 +463,17 @@ def run_ingest():
 
             text_chunk = (
                 f"Drug: {drug_name} ({brand_name or 'Generic'}) | "
-                f"Active Ingredient: {active_ingredient[:300]} | "
-                f"Interactions: {interactions[:300]} | "
-                f"Contraindications: {contraindications[:300]} | "
-                f"Side Effects: {side_effects[:300]} | "
-                f"Warnings: {warnings[:300]} | "
-                f"Dosage: {dosage[:300]} | "
-                f"Indications: {indications[:300]} | "
+                f"Active Ingredient: {active_ingredient[:400]} | "
+                f"Interactions: {interactions[:1200]} | "  # ← increased a lot
+                f"Contraindications: {contraindications[:800]} | "  # ← increased
+                f"Side Effects: {side_effects[:600]} | "
+                f"Warnings: {warnings[:1000]} | "  # ← increased
+                f"Dosage: {dosage[:500]} | "
+                f"Indications: {indications[:500]} | "
                 f"Purpose: {purpose[:300]} | "
-                f"Do Not Use: {do_not_use[:300]} | "
-                f"Stop Use: {stop_use[:300]} | "
-                f"Pregnancy: {pregnancy[:300]}"
+                f"Do Not Use: {do_not_use[:400]} | "
+                f"Stop Use: {stop_use[:400]} | "
+                f"Pregnancy: {pregnancy[:400]}"
             )
 
             if text_chunk in seen_documents:

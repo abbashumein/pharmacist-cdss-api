@@ -76,74 +76,27 @@ TARGET_DRUGS = [
 ]
 
 
-def rewrite_clinical_query(query: str) -> str:
-    """Rewrite a pharmacist query into focused FDA retrieval terms."""
-    lower_query = query.lower()
-
-    found_drugs = [
-        drug for drug in TARGET_DRUGS
-        if drug in lower_query
-    ]
-
-    intent_keywords = []
-
-    if any(word in lower_query for word in [
-        "interaction", "interact", "safe", "together", "combine", "mix"
-    ]):
-        intent_keywords.append("drug interaction")
-
-    if any(word in lower_query for word in [
-        "contraindication", "contraindications", "avoid",
-        "cannot", "should not"
-    ]):
-        intent_keywords.append("contraindication")
-
-    if any(word in lower_query for word in [
-        "side effect", "side effects", "adverse",
-        "reaction", "reactions"
-    ]):
-        intent_keywords.append("adverse reactions side effects")
-
-    if any(word in lower_query for word in [
-        "dose", "dosage", "how much", "mg"
-    ]):
-        intent_keywords.append("dosage administration")
-
-    if any(word in lower_query for word in [
-        "warning", "warnings", "danger"
-    ]):
-        intent_keywords.append("warnings")
-
-    if found_drugs:
-        return " ".join(found_drugs + intent_keywords)
-
-    return query
-
-
 # ============================================================
-# FDA DATABASE TOOL  (upgraded – mirrors V2 TIER 0)
+# FDA DATABASE TOOL  (upgraded – per-drug retrieval)
 # ============================================================
 
 SIMILARITY_THRESHOLD = 0.95   # same value V2 uses (distance)
 
-def rewrite_clinical_query(query: str) -> str:
-    """Keep existing logic – it is already decent."""
-    lower_query = query.lower()
-    found_drugs = [drug for drug in TARGET_DRUGS if drug in lower_query]
-    intent_keywords = []
+
+def _intent_keywords(lower_query: str) -> List[str]:
+    """Extract clinical-intent keywords from a lowercased query string."""
+    keywords = []
     if any(w in lower_query for w in ["interaction", "interact", "safe", "together", "combine", "mix"]):
-        intent_keywords.append("drug interaction")
+        keywords.append("drug interaction")
     if any(w in lower_query for w in ["contraindication", "contraindications", "avoid", "cannot", "should not"]):
-        intent_keywords.append("contraindication")
+        keywords.append("contraindication")
     if any(w in lower_query for w in ["side effect", "side effects", "adverse", "reaction", "reactions"]):
-        intent_keywords.append("adverse reactions side effects")
+        keywords.append("adverse reactions side effects")
     if any(w in lower_query for w in ["dose", "dosage", "how much", "mg"]):
-        intent_keywords.append("dosage administration")
+        keywords.append("dosage administration")
     if any(w in lower_query for w in ["warning", "warnings", "danger"]):
-        intent_keywords.append("warnings")
-    if found_drugs:
-        return " ".join(found_drugs + intent_keywords)
-    return query
+        keywords.append("warnings")
+    return keywords
 
 
 def check_fda_database(query: str) -> Dict[str, Any]:
@@ -154,69 +107,93 @@ def check_fda_database(query: str) -> Dict[str, Any]:
       - retrieval_distance: float | None
       - evidence_text: str          (human-readable for the prompt)
       - chunks: list[str]           (raw)
+
+    FIX: each named drug is queried SEPARATELY (matches the V2 fix in
+    app/main_demo.py's triage_and_retrieve_node). A single combined query
+    like "warfarin ibuprofen drug interaction" makes both drugs compete for
+    the same top-N vector search slots — if one drug has stronger/more
+    generic matches (e.g. an OTC ibuprofen dosage chunk), it can crowd out
+    the other drug's actually-relevant chunk (e.g. warfarin's record noting
+    ibuprofen as an interaction risk) before reranking ever sees it.
+    Querying per-drug guarantees each one gets an uncontested retrieval
+    pass; the threshold + reranker below still decide what's usable.
     """
     try:
-        search_query = rewrite_clinical_query(query)
+        lower_query = query.lower()
+        found_drugs = [drug for drug in TARGET_DRUGS if drug in lower_query]
+        intent_string = " ".join(_intent_keywords(lower_query))
 
-        db_results = collection.query(
-            query_texts=[search_query],
-            n_results=8,                       # retrieve a bit more, then filter
-            include=["documents", "distances"]
-        )
+        usable = []
+        all_distances = []
 
-        documents = db_results.get("documents", [[]])[0]
-        distances = db_results.get("distances", [[]])[0]
+        if found_drugs:
+            for drug in found_drugs:
+                drug_query = f"{drug} {intent_string}".strip()
+                db_results = collection.query(
+                    query_texts=[drug_query],
+                    n_results=5,
+                    include=["documents", "distances"]
+                )
+                documents = db_results.get("documents", [[]])[0]
+                distances = db_results.get("distances", [[]])[0]
 
-        if not documents:
-            return {
-                "has_usable_evidence": False,
-                "retrieval_distance": None,
-                "evidence_text": "No relevant FDA evidence was found.",
-                "chunks": []
-            }
+                if not documents:
+                    continue
 
-        # Rerank
-        pairs = [[search_query, doc] for doc in documents]
-        scores = reranker.predict(pairs)
-        ranked = sorted(
-            zip(scores, documents, distances),
-            key=lambda x: x[0],
-            reverse=True
-        )
+                pairs = [[drug_query, doc] for doc in documents]
+                scores = reranker.predict(pairs)
+                ranked = sorted(zip(scores, documents, distances), key=lambda x: x[0], reverse=True)
 
-        # Apply the same threshold V2 uses
-        usable = [
-            (score, doc, dist)
-            for score, doc, dist in ranked
-            if dist < SIMILARITY_THRESHOLD
-        ]
+                for score, doc, dist in ranked:
+                    all_distances.append(dist)
+                    if dist < SIMILARITY_THRESHOLD:
+                        usable.append((score, doc, dist, drug))
+        else:
+            search_query = f"{query} {intent_string}".strip()
+            db_results = collection.query(
+                query_texts=[search_query],
+                n_results=8,
+                include=["documents", "distances"]
+            )
+            documents = db_results.get("documents", [[]])[0]
+            distances = db_results.get("distances", [[]])[0]
+
+            if documents:
+                pairs = [[search_query, doc] for doc in documents]
+                scores = reranker.predict(pairs)
+                ranked = sorted(zip(scores, documents, distances), key=lambda x: x[0], reverse=True)
+                for score, doc, dist in ranked:
+                    all_distances.append(dist)
+                    if dist < SIMILARITY_THRESHOLD:
+                        usable.append((score, doc, dist, None))
 
         if not usable:
             return {
                 "has_usable_evidence": False,
-                "retrieval_distance": min(distances) if distances else None,
+                "retrieval_distance": min(all_distances) if all_distances else None,
                 "evidence_text": "No sufficiently relevant FDA evidence found for this query.",
                 "chunks": []
             }
 
-        # Keep top 5 usable
-        usable = usable[:5]
-        best_distance = min(d for _, _, d in usable)
+        # Keep the strongest evidence overall, capped at 5 for prompt size
+        usable = sorted(usable, key=lambda x: x[0], reverse=True)[:5]
+        best_distance = min(d for _, _, d, _ in usable)
 
         evidence_lines = []
-        for rank, (score, doc, dist) in enumerate(usable, 1):
+        for rank, (score, doc, dist, drug) in enumerate(usable, 1):
+            label = f" [{drug}]" if drug else ""
             evidence_lines.append(
-                f"Evidence {rank} (reranker={score:.4f}, distance={dist:.4f}):\n{doc}"
+                f"Evidence {rank}{label} (reranker={score:.4f}, distance={dist:.4f}):\n{doc}"
             )
 
         return {
             "has_usable_evidence": True,
             "retrieval_distance": best_distance,
             "evidence_text": (
-                f"FDA database search query: {search_query}\n\n"
+                f"FDA database search for: {query}\n\n"
                 + "\n\n".join(evidence_lines)
             ),
-            "chunks": [doc for _, doc, _ in usable]
+            "chunks": [doc for _, doc, _, _ in usable]
         }
 
     except Exception as e:
@@ -252,9 +229,14 @@ AGENT_SYSTEM_PROMPT = """You are a professional Pharmacist AI Assistant.
 You have access to an FDA drug database tool.
 
 CRITICAL RULES (never break):
+0. If the query is NOT about a drug or medication (e.g. general conversation,
+   weather, poems, unrelated topics), rules 1-4 below do not apply — just
+   respond normally and briefly, then still follow rule 5 and rule 6.
 1. For any drug-related query: ALWAYS call the FDA tool first.
 2. Answer ONLY from the FDA evidence that is provided.
-3. If has_usable_evidence is False, or the evidence does not explicitly discuss the asked interaction / topic, you MUST reply with exactly:
+3. For a drug-related query only: if has_usable_evidence is False, or the
+   evidence does not explicitly discuss the asked interaction / topic, you
+   MUST reply with exactly:
    "I don't have sufficient FDA data for this query."
 4. Do NOT infer an interaction just because two drug names appear in the question.
 5. At the very end of your response (after the clinical text) emit one machine-readable line:
@@ -300,14 +282,16 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
     # Second pass → we already have evidence (or the tool said none)
     context = state.fda_evidence if state.fda_evidence and state.fda_evidence != "TOOL_NEEDED" else "No FDA evidence retrieved."
 
-    # Inject the same confidence signal V2 uses
-    signal = (
-        f"RETRIEVAL CONFIDENCE SIGNAL: "
-        f"has_usable_evidence={state.has_usable_evidence}, "
-        f"best_distance={state.retrieval_distance}"
-    )
+    if state.tool_called:
+        # Clinical query: the FDA tool ran, so give the model the retrieval
+        # signal and evidence to ground its answer in.
+        signal = (
+            f"RETRIEVAL CONFIDENCE SIGNAL: "
+            f"has_usable_evidence={state.has_usable_evidence}, "
+            f"best_distance={state.retrieval_distance}"
+        )
 
-    prompt = f"""{AGENT_SYSTEM_PROMPT}
+        prompt = f"""{AGENT_SYSTEM_PROMPT}
 
 {signal}
 
@@ -317,6 +301,18 @@ FDA EVIDENCE:
 USER QUERY: {user_message}
 
 Respond with a clear clinical answer and the RISK_LEVEL line."""
+    else:
+        # Non-clinical query: the FDA tool never ran. Don't show the model
+        # any "has_usable_evidence=False" / "No FDA evidence retrieved"
+        # framing at all — that framing alone was enough to pull Gemini
+        # toward the FDA-refusal pattern even with rule 0 telling it not
+        # to, e.g. on "write a poem about the ocean." Give it a plain
+        # prompt instead so there's nothing FDA-shaped to latch onto.
+        prompt = f"""{AGENT_SYSTEM_PROMPT}
+
+USER QUERY: {user_message}
+
+This is not a drug-related question. Respond normally per rule 0, then end with the RISK_LEVEL line."""
 
     try:
         response = ai_client.models.generate_content(
@@ -335,8 +331,14 @@ Respond with a clear clinical answer and the RISK_LEVEL line."""
     # Remove the marker from what the user sees
     clean = re.sub(r"\s*RISK_LEVEL:\s*(LOW|MODERATE|HIGH)\s*", "", raw, flags=re.IGNORECASE).strip()
 
-    # Hard guardrail: no usable evidence → never claim HIGH + force insufficient message
-    if not state.has_usable_evidence:
+    # Hard guardrail: FDA tool ran but found no usable evidence → never claim
+    # HIGH risk + force the "insufficient data" message. Gated on
+    # tool_called as well as has_usable_evidence: for a non-clinical query
+    # (e.g. "write a poem about the ocean") the tool never runs at all, so
+    # has_usable_evidence is False by default — that must NOT be mistaken
+    # for "FDA data was insufficient", or every out-of-scope question
+    # incorrectly gets the FDA-shortfall message instead of a normal reply.
+    if state.tool_called and not state.has_usable_evidence:
         if "sufficient FDA data" not in clean.lower():
             clean = "I don't have sufficient FDA data for this query.\n\nThis is AI assistance. Final decision should be made by a licensed pharmacist or doctor."
         if risk == "HIGH":
