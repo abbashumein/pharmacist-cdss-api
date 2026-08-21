@@ -393,13 +393,20 @@ RAG or Agentic Retrieval Layer
 
 ## V3 Agentic Key Findings
 - Gemini correctly routes ALL 20 queries — tool called for clinical, refused for out-of-scope
-- 90% of clinical responses grounded in retrieved FDA evidence
-- 2 misses: ibuprofen data quality gap + ambiguous query without drug context
+- 90% of clinical responses grounded in retrieved FDA evidence (original 20-query eval)
+- Warfarin + ibuprofen interaction confirmed post-fix: distance 0.613, correctly identifies
+  bleeding-risk mechanism and recommends INR monitoring
+- Guardrail correctly declines to speculate on metformin + lisinopril interaction — both
+  drugs present in corpus individually, but no chunk explicitly documents an interaction
+  between them, and the system refuses to infer one from co-occurrence alone (Rule 4)
 
 ## Known Limitations
-* Multi-drug interaction queries occasionally favor one drug's chunk over the other
-* Ibuprofen FDA records in corpus have incomplete interaction data
+* Corpus coverage is per-drug, not per-pair — an interaction can go undocumented even when
+  both drugs are individually well-represented, and the system correctly refuses to guess
+  rather than hallucinate
 * Gemini free tier limits evaluation to 20 requests/day
+* ChromaDB collection handles can go stale after an external rebuild, requiring a server
+  restart to re-resolve (see Engineering Challenges)
 
 ## 🔧 Engineering Challenges & Solutions
 
@@ -417,7 +424,7 @@ RAG or Agentic Retrieval Layer
 | Windows local dev blocked by native build | `chroma-hnswlib==0.7.3` (via `chromadb==0.5.3`) has no prebuilt Windows wheel for Python 3.12, requires MSVC compiler | Upgraded to `chromadb==0.5.4` (prebuilt wheel available), decoupled `langchain-chroma` install with `--no-deps` to resolve a metadata-only version conflict |
 | Out-of-scope queries returning irrelevant chunks | No similarity threshold — ChromaDB always returned nearest neighbor even for unrelated queries | Added cosine distance threshold (0.8) in triage node — rejects chunks above threshold, returns 'No relevant FDA evidence found' |
 | Gemini daily quota exhausted during eval | Free tier allows only 20 generation requests/day — eval script sent all queries too fast | Added `time.sleep(20)` between eval requests to stay within rate limits |
-| ChromaDB collection lost between server restarts | `run_ingest()` deletes and recreates collection — agentic server held stale reference | Switched from `get_collection()` to `get_or_create_collection()` + fresh collection reference inside `check_fda_database()` |
+| ChromaDB collection handle goes stale after rebuild | `get_or_create_collection()` resolves a collection by internal UUID at server startup; if the DB is rebuilt afterward (e.g. via `main_demo.py`'s ingest), that UUID no longer exists — confirmed via `Collection [uuid] does not exist` error in logs | Restart the agentic server after any DB rebuild so it re-resolves a fresh collection handle; documented as a required step in deployment/ops notes |
 | Gemini returning JSON wrapped in markdown backticks | Gemini occasionally wraps JSON in ` ```json ``` ` despite prompt instructions | Added `except Exception` catch in telemetry node — falls back to regex parsing when JSON parsing fails |
 | Local embedding quota hit during large ingest | Gemini free tier embedding API has 1000 requests/day limit — 200+ records exhausted it | Switched to local `all-MiniLM-L6-v2` sentence-transformers model — free, unlimited, no API calls |
 | Pydantic validation crash on null warnings field | `warnings: str = None` not valid in Pydantic v2 — `None` is not a string | Changed to `warnings: Optional[str] = None` with proper `Optional` typing |
