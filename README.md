@@ -10,6 +10,13 @@ Both versions retrieve real FDA drug records (806 labels) and generate structure
 
 ---
 
+## Overview
+## Architecture (V2 / V3)
+## V3 Agentic Key Findings
+## Evidence — Live Verification        ← new section
+## Known Limitations
+## Engineering Challenges & Solutions
+## Setup / Local Dev instructions
 ## Key Features
 
 ### Clinical Decision Support
@@ -112,7 +119,7 @@ The system exists in two production-ready versions. All components are built, ev
 * Telemetry Node — JSON parsing with regex fallback, risk level, confidence, emotion
 
 **Retrieval-Augmented Generation**
-* ChromaDB vector storage (806 FDA drug labels)
+* ChromaDB vector storage (834 FDA drug labels)
 * Local all-MiniLM-L6-v2 embeddings — free, unlimited
 * CrossEncoder reranking — ms-marco-MiniLM-L-6-v2
 * Cosine similarity threshold (0.95) — rejects irrelevant chunks
