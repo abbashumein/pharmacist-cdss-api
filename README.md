@@ -28,7 +28,7 @@ Both versions retrieve real FDA drug records (806 labels) and generate structure
 
 ### Retrieval-Augmented Generation (RAG) — V2
 * Local all-MiniLM-L6-v2 embeddings — free, unlimited, no API quota
-* ChromaDB vector database with 806 FDA drug labels
+* ChromaDB vector database with 834 FDA drug labels
 * CrossEncoder reranking (ms-marco-MiniLM-L-6-v2) for precision
 * Query rewriting — extracts drug names + clinical intent keywords
 * Cosine similarity threshold — rejects irrelevant chunks
