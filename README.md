@@ -6,7 +6,7 @@ The system exists in two versions:
 - **V2 (RAG Pipeline)** — LangGraph 3-node pipeline with ChromaDB, local embeddings, CrossEncoder reranking, query rewriting, and structured JSON output
 - **V3 (Agentic)** — LangGraph agent where Gemini decides when to call the FDA tool, with conditional routing and 100% tool routing accuracy
 
-Both versions retrieve real FDA drug records (806 labels) and generate structured clinical responses with risk assessment, emotion detection, and full audit logging.
+Both versions retrieve real FDA drug records (834 labels) and generate structured clinical responses with risk assessment, emotion detection, and full audit logging.
 
 ---
 
