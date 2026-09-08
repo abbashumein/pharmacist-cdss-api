@@ -388,8 +388,8 @@ RAG or Agentic Retrieval Layer
 | Drug Interaction Accuracy | 100% (4/4) | 83% (5/6) | 80% (4/5) |
 | Contraindication Accuracy | 100% (4/4) | 100% (6/6) | 100% (3/3) |
 | Out-of-Scope Rejection | Not tested | 100% (3/3) | 100% (4/4) |
-| Tool Routing Accuracy | N/A | N/A | 100% (20/20) |
-| Grounded Responses | N/A | N/A | 90% (18/20) |
+| Tool Routing Accuracy | N/A | N/A | Pending re-validation* |
+| Grounded Responses | N/A | N/A | Pending re-validation* |
 | Records in ChromaDB | 19 FDA labels | 444 FDA labels | 834 FDA labels |
 | Embedding Model | Gemini cloud API | Local all-MiniLM-L6-v2 | Local all-MiniLM-L6-v2 |
 | Reranker | None | CrossEncoder | CrossEncoder |
@@ -397,6 +397,27 @@ RAG or Agentic Retrieval Layer
 | Eval Test Cases | 10 queries | 24 queries | 20 queries |
 | p95 Latency | ~16s (cold start) | ~5-8s (local) | ~5-10s (local) |
 | Cost per Request | ~$0.0008 | ~$0.0004 | ~$0.0004 |
+
+\* V3's routing was rebuilt (Sept 2026) from keyword matching to real Gemini
+function-calling. The 100%/90% figures above were measured against the old
+keyword router and no longer apply to the current code. Re-evaluation is
+pending (blocked on daily Gemini free-tier quota).
+
+
+
+
+### V2 — additional robustness testing (Sept 2026)
+
+A harder eval set (`eval_v2_hard.py`) was added to test paraphrased and
+indirectly-referenced queries, beyond the original direct-name test set:
+
+| Category | Result |
+|---|---|
+| Paraphrased drug queries (e.g. "does lisinopril mess with your kidneys?") | 100% (4/4) |
+| Indirect drug references (e.g. "my grandma's blood thinner") | 33% (1/3) |
+
+Indirect references are a known limitation — retrieval is keyed by exact drug name, not drug class, so descriptive references ("blood thinner", "cholesterol pill") aren't reliably matched. A drug-class mapping layer is a planned next step.
+
 
 ## V3 Agentic Key Findings
 - Gemini correctly routes ALL 20 queries — tool called for clinical, refused for out-of-scope
