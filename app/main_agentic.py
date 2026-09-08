@@ -82,6 +82,34 @@ TARGET_DRUGS = [
 
 SIMILARITY_THRESHOLD = 0.95   # same value V2 uses (distance)
 
+# ============================================================
+# REAL AGENTIC ROUTING — Gemini function-calling tool schema
+# (replaces the old keyword-list `needs_fda` check in agent_node)
+# ============================================================
+
+fda_tool = types.Tool(function_declarations=[
+    types.FunctionDeclaration(
+        name="fda_lookup",
+        description=(
+            "Look up FDA drug interaction, dosage, contraindication, or "
+            "side-effect data for a named medication. Call this ONLY when "
+            "the user is asking about a specific drug or medication. Do "
+            "NOT call it for unrelated questions (weather, general chat, "
+            "greetings, etc.)."
+        ),
+        parameters=types.Schema(
+            type="OBJECT",
+            properties={
+                "drug_name": types.Schema(
+                    type="STRING",
+                    description="The medication name mentioned in the query, if any.",
+                ),
+            },
+            required=[],
+        ),
+    )
+])
+
 
 def _intent_keywords(lower_query: str) -> List[str]:
     """Extract clinical-intent keywords from a lowercased query string."""
@@ -99,7 +127,7 @@ def _intent_keywords(lower_query: str) -> List[str]:
     return keywords
 
 
-def check_fda_database(query: str) -> Dict[str, Any]:
+def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict[str, Any]:
     """
     Returns a structured dict the agent can reason over.
     Key fields:
@@ -121,6 +149,14 @@ def check_fda_database(query: str) -> Dict[str, Any]:
     try:
         lower_query = query.lower()
         found_drugs = [drug for drug in TARGET_DRUGS if drug in lower_query]
+
+        # If Gemini's routing call extracted a drug name (e.g. from a
+        # paraphrased query the substring match above misses), use it too.
+        if extracted_drug:
+            norm = extracted_drug.strip().lower()
+            if norm in TARGET_DRUGS and norm not in found_drugs:
+                found_drugs.append(norm)
+
         intent_string = " ".join(_intent_keywords(lower_query))
 
         usable = []
@@ -219,6 +255,7 @@ class AgentState(BaseModel):
     final_response: str = ""
     tool_called: bool = False
     risk_level: str = "LOW"
+    extracted_drug: Optional[str] = None    # NEW — drug name Gemini pulled out during routing
 
 
 # ============================================================
@@ -254,7 +291,7 @@ CRITICAL RULES (never break):
 def tool_node(state: AgentState) -> Dict[str, Any]:
     """Execute FDA database tool and store structured result."""
     user_message = state.messages[-1]["content"] if state.messages else ""
-    result = check_fda_database(user_message)
+    result = check_fda_database(user_message, extracted_drug=state.extracted_drug)
 
     return {
         "fda_evidence": result["evidence_text"],
@@ -265,19 +302,60 @@ def tool_node(state: AgentState) -> Dict[str, Any]:
 
 
 def agent_node(state: AgentState) -> Dict[str, Any]:
-    """Gemini decides whether to call FDA tool or respond."""
+    """Gemini decides whether to call FDA tool or respond.
+
+    REAL routing (was: keyword list). We hand Gemini the fda_lookup tool
+    schema and let it read the query itself — via native function calling —
+    to decide whether a drug lookup is needed, instead of matching against
+    a fixed keyword/drug list. This is what actually makes routing
+    LLM-driven rather than deterministic string matching.
+    """
     user_message = state.messages[-1]["content"] if state.messages else ""
 
-    lower_query = user_message.lower()
-    drug_keywords = TARGET_DRUGS + [
-        "drug", "medication", "medicine", "dose",
-        "interaction", "side effect", "contraindication"
-    ]
-    needs_fda = any(word in lower_query for word in drug_keywords)
+    # First pass → ask Gemini whether the tool is needed
+    if not state.tool_called:
+        func_call = None
+        try:
+            routing_response = ai_client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=user_message,
+                config=types.GenerateContentConfig(
+                    tools=[fda_tool],
+                    system_instruction=(
+                        "You are the routing layer for a pharmacist assistant. "
+                        "Decide whether this query needs the fda_lookup tool. "
+                        "Call it only for questions about a specific "
+                        "medication's interactions, dosage, contraindications, "
+                        "or side effects — including paraphrased ones like "
+                        "'can I take this with alcohol' or 'is it safe during "
+                        "pregnancy'. Do not call it for unrelated questions."
+                    ),
+                ),
+            )
+            parts = routing_response.candidates[0].content.parts or []
+            func_call = next((p.function_call for p in parts if p.function_call), None)
+        except Exception as e:
+            sys_logger.error(f"Routing call failed: {str(e)}")
+            # Fail-safe: if the routing call itself errors, fall back to the
+            # old keyword check rather than silently skipping the FDA tool
+            # on every request.
+            lower_query = user_message.lower()
+            drug_keywords = TARGET_DRUGS + [
+                "drug", "medication", "medicine", "dose",
+                "interaction", "side effect", "contraindication"
+            ]
+            if any(word in lower_query for word in drug_keywords):
+                return {"fda_evidence": "TOOL_NEEDED", "tool_called": False}
 
-    # First pass → request the tool
-    if needs_fda and not state.tool_called:
-        return {"fda_evidence": "TOOL_NEEDED", "tool_called": False}
+        if func_call and func_call.name == "fda_lookup":
+            drug_name = None
+            if func_call.args:
+                drug_name = func_call.args.get("drug_name")
+            return {
+                "fda_evidence": "TOOL_NEEDED",
+                "tool_called": False,
+                "extracted_drug": drug_name,
+            }
 
     # Second pass → we already have evidence (or the tool said none)
     context = state.fda_evidence if state.fda_evidence and state.fda_evidence != "TOOL_NEEDED" else "No FDA evidence retrieved."
