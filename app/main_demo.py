@@ -62,6 +62,43 @@ collection = chroma_client.get_or_create_collection(
     embedding_function=google_ef
 )
 
+TARGET_DRUGS = ["warfarin", "amiodarone", "aspirin", "ibuprofen",
+                "metformin", "lisinopril", "atorvastatin", "omeprazole",
+                "amlodipine", "metoprolol", "levothyroxine", "albuterol"]
+
+
+def resolve_indirect_drug_reference(query: str) -> Optional[str]:
+    """
+    Handles queries that describe a drug by category/purpose instead of
+    naming it (e.g. "my blood thinner", "cholesterol pill"). Substring
+    matching against TARGET_DRUGS misses these entirely, so this asks
+    Gemini to map the description to the closest drug in our corpus.
+    Returns a lowercase drug name from TARGET_DRUGS, or None.
+    """
+    try:
+        prompt = (
+            "A user is asking about a medication. If part of their query "
+            "refers to a drug by its category or purpose rather than by "
+            "name (e.g. 'blood thinner', 'cholesterol pill', 'blood "
+            "pressure medicine', 'heart medication') — even if another "
+            "drug is already named elsewhere in the same query — identify "
+            "which ONE drug from this list that description most likely "
+            "refers to. If no such described-but-unnamed drug is present, "
+            "reply NONE.\n"
+            f"Drug list: {', '.join(TARGET_DRUGS)}\n\n"
+            f"User query: \"{query}\"\n\n"
+            "Reply with ONLY the drug name (lowercase) or NONE. No other text."
+        )
+        response = ai_client.models.generate_content(
+            model="gemini-2.5-flash", contents=prompt
+        )
+        candidate = (response.text or "").strip().lower()
+        sys_logger.info(f"[RESOLVER DEBUG] query='{query}' -> raw_response='{candidate}'")
+        return candidate if candidate in TARGET_DRUGS else None
+    except Exception as e:
+        sys_logger.error(f"[RESOLVER DEBUG] Indirect drug resolution FAILED: {str(e)}")
+        return None
+
 
 @app.get("/")
 async def serve_frontend():
@@ -130,10 +167,19 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
                          "can i add", "interaction", "safe to", "mg"]
     is_clinical = any(word in user_msg.lower() for word in clinical_keywords)
 
-    found_drugs = [word for word in ["warfarin", "amiodarone", "aspirin", "ibuprofen",
-                                     "metformin", "lisinopril", "atorvastatin", "omeprazole",
-                                     "amlodipine", "metoprolol", "levothyroxine", "albuterol"] if
-                   word in user_msg.lower()]
+    found_drugs = [word for word in TARGET_DRUGS if word in user_msg.lower()]
+
+    # Always let Gemini check for an additional drug reference on
+    # clinical queries — not gated on a keyword/phrase list, since any
+    # fixed phrase list has the same brittleness as substring matching
+    # (it only ever recognizes patterns we've already anticipated).
+    # Gemini reads the full query and decides if there's a described-
+    # but-unnamed drug, whether or not one was already found directly.
+    sys_logger.info(f"[RESOLVER DEBUG] is_clinical={is_clinical} found_drugs_before={found_drugs} query='{user_msg}'")
+    if is_clinical:
+        resolved = resolve_indirect_drug_reference(user_msg)
+        if resolved and resolved not in found_drugs:
+            found_drugs.append(resolved)
 
     # Prioritize important prescription drugs
     priority_drugs = ["warfarin", "amiodarone", "metformin", "lisinopril", "atorvastatin", "metoprolol"]

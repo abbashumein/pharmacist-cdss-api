@@ -95,14 +95,21 @@ fda_tool = types.Tool(function_declarations=[
             "side-effect data for a named medication. Call this ONLY when "
             "the user is asking about a specific drug or medication. Do "
             "NOT call it for unrelated questions (weather, general chat, "
-            "greetings, etc.)."
+            "greetings, etc.). If the user describes a drug by its "
+            "category or purpose instead of its name (e.g. 'blood "
+            "thinner', 'cholesterol pill', 'blood pressure medicine', "
+            "'heart medication'), map it to the single most likely drug "
+            "from this list: warfarin, amiodarone, aspirin, ibuprofen, "
+            "metformin, lisinopril, atorvastatin, omeprazole, amlodipine, "
+            "metoprolol, levothyroxine, albuterol — and pass that drug "
+            "name in drug_name."
         ),
         parameters=types.Schema(
             type="OBJECT",
             properties={
                 "drug_name": types.Schema(
                     type="STRING",
-                    description="The medication name mentioned in the query, if any.",
+                    description="The medication name mentioned or implied by the query, if any.",
                 ),
             },
             required=[],
