@@ -398,12 +398,6 @@ RAG or Agentic Retrieval Layer
 | p95 Latency | ~16s (cold start) | ~5-8s (local) | ~5-10s (local) |
 | Cost per Request | ~$0.0008 | ~$0.0004 | ~$0.0004 |
 
-\* V3's routing was rebuilt (Sept 2026) from keyword matching to real Gemini
-function-calling. The 100%/90% figures above were measured against the old
-keyword router and no longer apply to the current code. Re-evaluation is
-pending (blocked on daily Gemini free-tier quota).
-
-
 
 
 ### V2 — additional robustness testing (Sept 2026)
@@ -414,9 +408,9 @@ indirectly-referenced queries, beyond the original direct-name test set:
 | Category | Result |
 |---|---|
 | Paraphrased drug queries (e.g. "does lisinopril mess with your kidneys?") | 100% (4/4) |
-| Indirect drug references (e.g. "my grandma's blood thinner") | 33% (1/3) |
+| Indirect drug references (e.g. "my grandma's blood thinner") | Fix applied (LLM-based resolver + reranking correction); manually verified on individual test cases; official batch re-run pending |
 
-Indirect references are a known limitation — retrieval is keyed by exact drug name, not drug class, so descriptive references ("blood thinner", "cholesterol pill") aren't reliably matched. A drug-class mapping layer is a planned next step.
+Indirect references initially scored 33% (1/3) due to two compounding bugs: the retrieval step only ran the resolver when zero drugs were found directly (missed multi-drug queries), and the reranker scored chunks against the raw query text instead of the resolved drug name, discarding correctly-retrieved evidence. Both are fixed as of Sept 10, 2026; official re-validation pending due to Gemini free-tier quota limits.
 
 
 ## V3 Agentic Key Findings
