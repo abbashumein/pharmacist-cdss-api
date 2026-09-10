@@ -256,8 +256,18 @@ def triage_and_retrieve_node(state: ClinicalGraphState) -> Dict[str, Any]:
         # Apply threshold + rerank
         SIMILARITY_THRESHOLD = 0.95
 
+        # Rerank against a query that includes resolved drug names, not
+        # just the raw user text. Without this, a category phrase like
+        # "blood pressure medicine" never lexically matches a lisinopril
+        # chunk, so the CrossEncoder under-scores the correctly-resolved
+        # drug in favor of whichever drug was named literally in the
+        # query — even after that drug's docs were boosted upstream.
+        rerank_query = user_msg
+        if found_drugs:
+            rerank_query = f"{user_msg} ({', '.join(found_drugs)})"
+
         if documents and distances and min(distances) < SIMILARITY_THRESHOLD:
-            pairs = [[user_msg, doc] for doc in documents]
+            pairs = [[rerank_query, doc] for doc in documents]
             scores = reranker.predict(pairs)
             ranked = sorted(zip(scores, documents, distances), key=lambda x: x[0], reverse=True)
 
