@@ -58,6 +58,17 @@ test_cases = [
 results = []
 category_stats = {}
 
+import sys
+
+# Run a slice of test_cases to stay within daily Gemini quota:
+#   python eval_v2_hard.py 0 9    -> first 10 queries (indices 0-9)
+#   python eval_v2_hard.py 9 18   -> next 9 queries (indices 9-17)
+#   python eval_v2_hard.py        -> all queries (default, may hit quota)
+start = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+end = int(sys.argv[2]) + 1 if len(sys.argv) > 2 else len(test_cases)
+test_cases = test_cases[start:end]
+print(f"Running queries {start} to {end - 1} ({len(test_cases)} total)\n")
+
 for i, case in enumerate(test_cases):
     time.sleep(13)  # 13 seconds = 4-5 requests per minute, safe
     t0 = time.time()
@@ -74,7 +85,18 @@ for i, case in enumerate(test_cases):
         continue
     latency = time.time() - t0
 
-    response_text = json.dumps(data).lower()
+    # Score against the REAL answer only, not the whole response JSON.
+    # Checking the full dump was a false-positive bug: evidence_sources
+    # always contains the drug name (from retrieval), so a query would
+    # score a "hit" even when generation itself failed (e.g. Gemini
+    # quota exhausted, fallback "temporarily unable to respond" message).
+    clinical_guidance_raw = data.get("clinical_guidance", "")
+    generation_failed = "temporarily unable to respond" in clinical_guidance_raw.lower()
+    try:
+        parsed = json.loads(clinical_guidance_raw)
+        answer_text = f"{parsed.get('answer', '')} {parsed.get('warnings', '')}".lower()
+    except (json.JSONDecodeError, TypeError):
+        answer_text = clinical_guidance_raw.lower()
     gateway = data.get("audit_log", {}).get("api_gateway_status", "")
 
     if case["expected"] == "REFUSE":
@@ -84,7 +106,11 @@ for i, case in enumerate(test_cases):
         # the system asked a clarifying question or gave a sensible reply.
         hit = None
     else:
-        hit = case["expected"].lower() in response_text and gateway == "200_OK_RAG_CONTEXT"
+        hit = (
+            not generation_failed
+            and case["expected"].lower() in answer_text
+            and gateway == "200_OK_RAG_CONTEXT"
+        )
 
     cat = case["category"]
     category_stats.setdefault(cat, {"hits": 0, "total": 0, "manual": 0})
