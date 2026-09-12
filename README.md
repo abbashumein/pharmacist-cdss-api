@@ -402,15 +402,25 @@ RAG or Agentic Retrieval Layer
 
 ### V2 — additional robustness testing (Sept 2026)
 
-A harder eval set (`eval_v2_hard.py`) was added to test paraphrased and
-indirectly-referenced queries, beyond the original direct-name test set:
+A harder eval set (`eval_v2_hard.py`, 18 queries) was added to test
+paraphrased and indirectly-referenced queries, beyond the original
+direct-name test set:
 
 | Category | Result |
 |---|---|
+| Direct lookup / interaction / contraindication / out-of-scope | 9/9 (100%) — consistent with original eval |
 | Paraphrased drug queries (e.g. "does lisinopril mess with your kidneys?") | 100% (4/4) |
-| Indirect drug references (e.g. "my grandma's blood thinner") | Fix applied (LLM-based resolver + reranking correction); manually verified on individual test cases; official batch re-run pending |
+| Indirect drug references (e.g. "my grandma's blood thinner", "blood pressure medicine") | 100% (3/3) |
+| Ambiguous, no drug name (e.g. "can I mix my two prescriptions?") | Correctly flagged for manual review, not auto-scored (2/2) |
 
-Indirect references initially scored 33% (1/3) due to two compounding bugs: the retrieval step only ran the resolver when zero drugs were found directly (missed multi-drug queries), and the reranker scored chunks against the raw query text instead of the resolved drug name, discarding correctly-retrieved evidence. Both are fixed as of Sept 10, 2026; official re-validation pending due to Gemini free-tier quota limits.
+Indirect references initially scored 33% (1/3) due to two compounding
+bugs: the retrieval step only ran the LLM-based drug resolver when zero
+drugs were found directly (missed multi-drug queries where one drug was
+named and another only described), and the reranker scored chunks
+against the raw query text instead of the resolved drug name, discarding
+correctly-retrieved evidence. Both fixed Sept 10-12, 2026, and confirmed
+via a full 18-query batch re-run.
+
 
 
 ## V3 Agentic Key Findings
