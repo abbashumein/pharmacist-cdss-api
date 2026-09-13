@@ -24,6 +24,39 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # ============================================================
+# QUOTA-AWARE RETRY WRAPPER
+# ============================================================
+# Gemini's 429 errors include the exact wait time in retryDelay (e.g.
+# "Please retry in 43.79s"). Failing immediately on this — as the code
+# previously did — corrupts eval runs: a batch of 10 queries can lose
+# 7-8 of them to transient rate limiting that a short wait would have
+# survived. This wraps every generate_content call with parse-and-wait
+# retry logic instead of a hard fail on the first 429.
+
+def call_gemini_with_retry(model: str, contents, config=None, max_retries: int = 2):
+    """Call Gemini, automatically retrying on 429 using the server's own
+    suggested retryDelay instead of failing immediately."""
+    for attempt in range(max_retries + 1):
+        try:
+            if config is not None:
+                return ai_client.models.generate_content(
+                    model=model, contents=contents, config=config
+                )
+            return ai_client.models.generate_content(model=model, contents=contents)
+        except Exception as e:
+            error_str = str(e)
+            is_quota_error = "429" in error_str or "RESOURCE_EXHAUSTED" in error_str
+            if not is_quota_error or attempt == max_retries:
+                raise
+            match = re.search(r"retry in ([\d.]+)s", error_str)
+            wait_seconds = float(match.group(1)) + 2 if match else 15
+            sys_logger.error(
+                f"Quota hit (attempt {attempt + 1}/{max_retries + 1}), "
+                f"waiting {wait_seconds:.0f}s before retry"
+            )
+            time.sleep(wait_seconds)
+
+# ============================================================
 # CONFIGURATION
 # ============================================================
 
@@ -323,7 +356,7 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
     if not state.tool_called:
         func_call = None
         try:
-            routing_response = ai_client.models.generate_content(
+            routing_response = call_gemini_with_retry(
                 model="gemini-2.5-flash",
                 contents=user_message,
                 config=types.GenerateContentConfig(
@@ -400,7 +433,7 @@ USER QUERY: {user_message}
 This is not a drug-related question. Respond normally per rule 0, then end with the RISK_LEVEL line."""
 
     try:
-        response = ai_client.models.generate_content(
+        response = call_gemini_with_retry(
             model="gemini-2.5-flash",
             contents=prompt
         )

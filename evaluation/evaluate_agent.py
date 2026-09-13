@@ -1,4 +1,5 @@
 import json
+import sys
 import time
 import requests
 
@@ -7,6 +8,15 @@ BASE_URL = "http://127.0.0.1:8001/chat"
 
 with open("evaluation/test_cases.json") as f:
     test_cases = json.load(f)
+
+# Run a slice to stay within daily Gemini quota:
+#   python evaluate_agent.py 0 9    -> first 10 queries (indices 0-9)
+#   python evaluate_agent.py 10 19  -> last 10 queries (indices 10-19)
+#   python evaluate_agent.py        -> all queries (default, may hit quota)
+start = int(sys.argv[1]) if len(sys.argv) > 1 else 0
+end = int(sys.argv[2]) + 1 if len(sys.argv) > 2 else len(test_cases)
+test_cases = test_cases[start:end]
+print(f"Running queries {start} to {end - 1} ({len(test_cases)} total)\n")
 
 results = []
 category_stats = {}
@@ -23,7 +33,7 @@ for case in test_cases:
             BASE_URL,
             json={"session_id": f"eval-{case['id']}", "message": case["query"]},
             headers={"X-API-KEY": API_KEY},
-            timeout=30
+            timeout=180  # server may retry on 429 for up to ~2 min
         )
         data = res.json()
     except Exception as e:
