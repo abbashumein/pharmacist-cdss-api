@@ -1,13 +1,21 @@
-# Pharmacist CDSS — AI-Powered Clinical Decision Support System
+# Pharmacist CDSS — Agentic RAG Clinical Decision Support System
 
-A production-grade Clinical Decision Support System that assists pharmacists and healthcare professionals with drug interaction checks, medication safety assessment, and evidence-grounded clinical guidance.
+A Clinical Decision Support System that assists pharmacists and healthcare professionals with drug interaction checks, medication safety assessment, and evidence-grounded clinical guidance, built as a progression from a fixed RAG pipeline to a genuine agentic RAG system.
 
 The system exists in two versions:
-- **V2 (RAG Pipeline)** — LangGraph 3-node pipeline with ChromaDB, local embeddings, CrossEncoder reranking, query rewriting, and structured JSON output
-- **V3 (Agentic)** — LangGraph agent where Gemini decides when to call the FDA tool, with conditional routing and 100% tool routing accuracy
 
-Both versions retrieve real FDA drug records (834 labels) and generate structured clinical responses with risk assessment, emotion detection, and full audit logging.
+- **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage → retrieval → generation) over 834 real FDA drug labels. Per-drug retrieval with local all-     MiniLM-L6-v2 embeddings, 0.95 cosine similarity threshold, CrossEncoder reranking, and an LLM-based resolver that maps category references ("blood thinner",       "cholesterol pill") to actual drug names before retrieval — not a hardcoded keyword/synonym list.
 
+- **V3 (Agentic RAG)** — LangGraph agent using real Gemini function-calling for tool routing: the model itself decides, per query, whether the
+  fda_lookup tool is needed, rather than following a fixed pipeline shape
+  every time. 95% tool routing accuracy (19/20), 80% grounded responses
+  (16/20) on a 20-query eval. Includes a guardrail (Rule 4) that declines
+  to infer a drug interaction from co-occurrence alone when no FDA chunk
+  documents it explicitly, and a quota-aware retry wrapper for Gemini's
+  free-tier rate limits.
+
+Both versions generate structured clinical responses with risk assessment,
+emotion detection, and full audit logging.
 ---
 
 ## Overview
@@ -397,6 +405,8 @@ RAG or Agentic Retrieval Layer
 | Eval Test Cases | 10 queries | 24 queries | 20 queries |
 | p95 Latency | ~16s (cold start) | ~5-8s (local) | ~5-10s (local) |
 | Cost per Request | ~$0.0008 | ~$0.0004 | ~$0.0004 |
+| Tool Routing Accuracy | N/A | N/A | 95% (19/20) |
+| Grounded Responses | N/A | N/A | 80% (16/20) |
 
 
 
@@ -413,32 +423,42 @@ direct-name test set:
 | Indirect drug references (e.g. "my grandma's blood thinner", "blood pressure medicine") | 100% (3/3) |
 | Ambiguous, no drug name (e.g. "can I mix my two prescriptions?") | Correctly flagged for manual review, not auto-scored (2/2) |
 
-Indirect references initially scored 33% (1/3) due to two compounding
-bugs: the retrieval step only ran the LLM-based drug resolver when zero
-drugs were found directly (missed multi-drug queries where one drug was
-named and another only described), and the reranker scored chunks
-against the raw query text instead of the resolved drug name, discarding
-correctly-retrieved evidence. Both fixed Sept 10-12, 2026, and confirmed
-via a full 18-query batch re-run.
 
+Indirect references initially scored 33% (1/3) due to two compounding bugs: the retrieval step only ran the LLM-based drug resolver when zero drugs were found directly (missed multi-drug queries where one drug was named and another only described), and the reranker scored chunks
+against the raw query text instead of the resolved drug name, discarding correctly-retrieved evidence. Both fixed, and confirmed by re-running all 18 queries
+(executed in slices to stay within).
 
 
 ## V3 Agentic Key Findings
-- Gemini correctly routes ALL 20 queries — tool called for clinical, refused for out-of-scope
-- 90% of clinical responses grounded in retrieved FDA evidence (original 20-query eval)
-- Warfarin + ibuprofen interaction confirmed post-fix: distance 0.613, correctly identifies
-  bleeding-risk mechanism and recommends INR monitoring
-- Guardrail correctly declines to speculate on metformin + lisinopril interaction — both
-  drugs present in corpus individually, but no chunk explicitly documents an interaction
-  between them, and the system refuses to infer one from co-occurrence alone (Rule 4)
+
+- Gemini function-calling routes 19/20 queries correctly (95%) — tool called for
+  clinical queries, correctly refused for all out-of-scope queries. The one
+  deviation was an ambiguous query with no drug named ("is this medication safe
+  to combine with painkiller"), where the agent declined the tool call and still
+  produced a grounded, appropriately cautious response rather than guessing.
+- 16/20 responses (80%) grounded in retrieved FDA evidence. Measured after
+  replacing keyword-based routing with real Gemini function-calling; earlier
+  figures reflected the deterministic router and no longer apply.
+- Warfarin + ibuprofen interaction confirmed post-fix: distance 0.613, correctly
+  identifies bleeding-risk mechanism and recommends INR monitoring.
+- Guardrail correctly declines to speculate on metformin + lisinopril interaction —
+  both drugs present in corpus individually, but no chunk explicitly documents an
+  interaction between them, and the system refuses to infer one from co-occurrence
+  alone (Rule 4).
+
+  
 
 ## Known Limitations
 * Corpus coverage is per-drug, not per-pair — an interaction can go undocumented even when
   both drugs are individually well-represented, and the system correctly refuses to guess
   rather than hallucinate
-* Gemini free tier limits evaluation to 20 requests/day
-* ChromaDB collection handles can go stale after an external rebuild, requiring a server
-  restart to re-resolve (see Engineering Challenges)
+* Gemini free tier limits evaluation to 20 requests/day; a quota-aware retry wrapper (waits on the server's suggested retryDelay) reduces transient 429 failure      but cannot fix full daily exhaustion — large eval batches
+  still require splitting across days
+* ChromaDB collection handles can go stale after an external rebuild, requiring a server restart to re-resolve (see Engineering Challenges)
+* V3 tool-routing is 95% (19/20), not 100% — one ambiguous, no-drug-named query was routed as "no tool needed" rather than asking a clarifying question; the agent   still gave a safe response, but a clarification step would be more correct than silent judgment calls
+
+
+
 
 ## 🔧 Engineering Challenges & Solutions
 
@@ -460,7 +480,12 @@ via a full 18-query batch re-run.
 | Gemini returning JSON wrapped in markdown backticks | Gemini occasionally wraps JSON in ` ```json ``` ` despite prompt instructions | Added `except Exception` catch in telemetry node — falls back to regex parsing when JSON parsing fails |
 | Local embedding quota hit during large ingest | Gemini free tier embedding API has 1000 requests/day limit — 200+ records exhausted it | Switched to local `all-MiniLM-L6-v2` sentence-transformers model — free, unlimited, no API calls |
 | Pydantic validation crash on null warnings field | `warnings: str = None` not valid in Pydantic v2 — `None` is not a string | Changed to `warnings: Optional[str] = None` with proper `Optional` typing |
-
+| V3 routing decision not actually LLM-driven | Original "agentic" routing was a keyword/drug-name substring match, not Gemini reasoning — despite being described as agent-driven | Replaced with real Gemini function-calling (`fda_tool` schema); Gemini itself decides whether to call the FDA tool, with a deterministic fallback only if the routing call errors |
+| Indirect drug references ("blood thinner") silently dropped when another drug was already named | Resolver only ran when zero drugs were found via substring match — multi-drug queries with one named + one described drug skipped resolution entirely | Removed the gating condition; resolver now runs on every clinical query regardless of what substring matching already found, and appends any newly-resolved drug |
+| Correctly-resolved indirect drug still missing from final answer | CrossEncoder reranked candidate chunks against the raw user query text, which never contained the resolved drug name (e.g. "blood pressure medicine" never lexically matches "lisinopril") — so retrieved lisinopril chunks lost the rerank despite being fetched correctly | Reranking query now includes resolved drug names, e.g. `"{user_msg} (lisinopril)"`, so resolved-but-unnamed drugs get proper credit during reranking |
+| Eval script reported false-positive hits on quota failures | `eval_v2_hard.py` checked the entire response JSON dump for the expected term, including `evidence_sources` — which always contains the drug name from retrieval even when generation itself failed and returned a fallback error message | Rewrote scoring to check only the parsed `answer`/`warnings` fields, and explicitly fail if the response is the "temporarily unable to respond" fallback |
+| Single 429 failure corrupted entire eval batches | Gemini calls failed immediately on rate-limit errors with no retry, so one quota hit mid-batch reported false negatives across the rest of the run | Added `call_gemini_with_retry()` — parses Gemini's own suggested `retryDelay` from the error and retries up to 2 times before failing; eval script timeout increased from 30s to 180s to accommodate |
+| Gemini daily quota exhausted during eval | Free tier allows only 20 generation requests/day; V3's agentic loop uses 2 calls/query (routing + generation), V2's resolver adds a 2nd call for ambiguous queries | Added `time.sleep(20)` between requests, plus quota-aware retry logic; large eval batches split across multiple days/slices to stay within budget |
 
 
 ### 🔬 Research & Development
