@@ -298,6 +298,30 @@ class AgentState(BaseModel):
     extracted_drug: Optional[str] = None    # NEW — drug name Gemini pulled out during routing
 
 
+def build_turn_state(session_id: str, message: str) -> Dict[str, Any]:
+    """Input state for ONE user turn.
+
+    MemorySaver keeps the whole state per thread_id. Any field we do not
+    set here is carried over from the previous turn. That caused a bug:
+    after turn 1, tool_called stayed True, so turn 2 skipped routing and
+    retrieval and answered with turn 1's FDA evidence.
+
+    So every per-turn field is reset here. Only session_id and the
+    message history are meant to persist across turns.
+    """
+    return {
+        "session_id": session_id,
+        "messages": [{"role": "user", "content": message}],
+        "fda_evidence": "",
+        "has_usable_evidence": False,
+        "retrieval_distance": None,
+        "final_response": "",
+        "tool_called": False,
+        "risk_level": "LOW",
+        "extracted_drug": None,
+    }
+
+
 # ============================================================
 # AGENT NODES
 # ============================================================
@@ -535,10 +559,7 @@ async def agent_chat(payload: AgentChatRequest):
     request_start = time.time()
 
     config = {"configurable": {"thread_id": payload.session_id}}
-    initial_state = {
-        "session_id": payload.session_id,
-        "messages": [{"role": "user", "content": payload.message}]
-    }
+    initial_state = build_turn_state(payload.session_id, payload.message)
 
     output = cdss_agent.invoke(initial_state, config)
 
