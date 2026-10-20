@@ -555,7 +555,7 @@ class AgentChatRequest(BaseModel):
 
 
 @app.post("/chat", dependencies=[Depends(validate_api_key)])
-async def agent_chat(payload: AgentChatRequest):
+def agent_chat(payload: AgentChatRequest):
     request_start = time.time()
 
     config = {"configurable": {"thread_id": payload.session_id}}

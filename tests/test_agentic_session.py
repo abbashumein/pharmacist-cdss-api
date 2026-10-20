@@ -132,3 +132,15 @@ def test_build_turn_state_resets_every_per_turn_field():
     assert state["final_response"] == ""
     assert state["risk_level"] == "LOW"
     assert state["messages"] == [{"role": "user", "content": "hello"}]
+
+
+def test_chat_endpoints_are_sync_so_they_run_in_a_threadpool():
+    """/chat does blocking work (Gemini, CrossEncoder, ChromaDB).
+
+    Declared as `async def`, it would run on the event loop and freeze every
+    other request while it waits. As plain `def`, FastAPI runs it in a worker
+    thread. This test guards against someone changing it back to `async def`.
+    """
+    import inspect
+
+    assert not inspect.iscoroutinefunction(main_agentic.agent_chat)

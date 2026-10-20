@@ -383,7 +383,7 @@ async def startup_ingest():
 
 
 @app.post("/chat", dependencies=[Depends(validate_api_key)])
-async def chat_endpoint(payload: ChatRequest):
+def chat_endpoint(payload: ChatRequest):
     request_start_time = time.time()
     sys_logger.info(f"Processing clinical evaluation track on Session ID: {payload.session_id}")
     config = {"configurable": {"thread_id": payload.session_id}}
