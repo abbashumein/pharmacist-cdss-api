@@ -1,10 +1,17 @@
 import json
+import os
 import sys
 import time
 import requests
 
-API_KEY = "local-test-key"
-BASE_URL = "http://127.0.0.1:8001/chat"
+# Set CDSS_API_KEY in your shell (same value the server uses). Never hardcode it.
+API_KEY = os.environ.get("CDSS_API_KEY", "")
+if not API_KEY:
+    raise SystemExit("Set the CDSS_API_KEY environment variable before running.")
+BASE_URL = os.environ.get("CDSS_URL", "http://127.0.0.1:8001/chat")
+
+REFUSAL_TEXT = "don't have sufficient fda data"
+FALLBACK_TEXT = "temporarily unable"
 
 with open("evaluation/test_cases.json") as f:
     test_cases = json.load(f)
@@ -48,12 +55,32 @@ for case in test_cases:
     # Tool routing accuracy
     routing_correct = tool_called == case["should_call_tool"]
 
-    # Evidence grounding — did response mention expected drug?
-    if case["expected_drug"]:
-        is_fallback = "temporarily unable" in response or "sorry" in response
-        grounded = case["expected_drug"].lower() in response
+    is_refusal = REFUSAL_TEXT in response
+    is_fallback = FALLBACK_TEXT in response
+
+    # Evidence grounding (STRICTER than before).
+    # Old rule: the expected drug name appears in the answer. A made-up
+    # answer can pass that. New rule for drug questions - ALL must be true:
+    #   - the FDA tool ran and found usable evidence
+    #   - the answer names the expected drug
+    #   - the answer is not a refusal and not a quota/error fallback
+    # Refusals are counted separately: a refusal is safe, but it is not an
+    # answer, so it must not be counted as "grounded".
+    # Still NOT checked: that every claim in the answer appears in the
+    # retrieved chunk (claim-level check). Do not describe this as that.
+    if case.get("expected_drug"):
+        grounded = (
+            tool_called
+            and fda_used
+            and case["expected_drug"].lower() in response
+            and not is_refusal
+            and not is_fallback
+        )
+    elif case["type"] == "out_of_scope":
+        grounded = not fda_used and not tool_called  # out-of-scope: tool must not run
     else:
-        grounded = not fda_used  # out-of-scope should not use FDA
+        # No expected drug (e.g. an ambiguous query): only require a real reply.
+        grounded = not is_fallback
 
     # Refusal check for out-of-scope
     refused_correctly = True
@@ -64,8 +91,11 @@ for case in test_cases:
     category_stats.setdefault(cat, {
         "routing_correct": 0,
         "grounded": 0,
+        "refusals": 0,
         "total": 0
     })
+    if is_refusal:
+        category_stats[cat]["refusals"] += 1
     category_stats[cat]["total"] += 1
     if routing_correct:
         category_stats[cat]["routing_correct"] += 1
@@ -82,7 +112,10 @@ for case in test_cases:
         "tool_called": tool_called,
         "routing_correct": routing_correct,
         "grounded": grounded,
-        "latency_ms": latency
+        "refusal": is_refusal,
+        "fallback": is_fallback,
+        "latency_ms": latency,
+        "response": data.get("response", "")
     })
 
 print("\n" + "=" * 60)
@@ -100,7 +133,7 @@ for cat, stats in category_stats.items():
     total_routing += r
     total_grounded += g
     total += t
-    print(f"{cat:20s}: routing {r}/{t} = {r/t*100:.0f}% | grounded {g}/{t} = {g/t*100:.0f}%")
+    print(f"{cat:20s}: routing {r}/{t} = {r/t*100:.0f}% | grounded {g}/{t} = {g/t*100:.0f}% | refusals {stats['refusals']}")
 
 print(f"\n{'OVERALL':20s}: routing {total_routing}/{total} = {total_routing/total*100:.0f}% | grounded {total_grounded}/{total} = {total_grounded/total*100:.0f}%")
 

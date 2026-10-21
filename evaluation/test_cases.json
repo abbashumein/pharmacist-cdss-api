@@ -1,0 +1,22 @@
+[
+  {"id": 1, "query": "Can warfarin interact with aspirin?", "type": "interaction", "expected_drug": "warfarin", "should_call_tool": true},
+  {"id": 2, "query": "What are contraindications of warfarin?", "type": "contraindication", "expected_drug": "warfarin", "should_call_tool": true},
+  {"id": 3, "query": "What are side effects of warfarin?", "type": "side_effects", "expected_drug": "warfarin", "should_call_tool": true},
+  {"id": 4, "query": "What does FDA say about warfarin dosing?", "type": "dosage", "expected_drug": "warfarin", "should_call_tool": true},
+  {"id": 5, "query": "What warnings are associated with warfarin?", "type": "warnings", "expected_drug": "warfarin", "should_call_tool": true},
+  {"id": 6, "query": "Can warfarin and amiodarone be used together?", "type": "interaction", "expected_drug": "warfarin", "should_call_tool": true},
+  {"id": 7, "query": "What are side effects of aspirin?", "type": "side_effects", "expected_drug": "aspirin", "should_call_tool": true},
+  {"id": 8, "query": "Aspirin contraindications", "type": "contraindication", "expected_drug": "aspirin", "should_call_tool": true},
+  {"id": 9, "query": "Is ibuprofen safe with warfarin?", "type": "interaction", "expected_drug": "warfarin", "should_call_tool": true},
+  {"id": 10, "query": "What are side effects of metformin?", "type": "side_effects", "expected_drug": "metformin", "should_call_tool": true},
+  {"id": 11, "query": "Metformin contraindications", "type": "contraindication", "expected_drug": "metformin", "should_call_tool": true},
+  {"id": 12, "query": "Can patient take metformin with lisinopril?", "type": "interaction", "expected_drug": "metformin", "should_call_tool": true},
+  {"id": 13, "query": "What are side effects of lisinopril?", "type": "side_effects", "expected_drug": "lisinopril", "should_call_tool": true},
+  {"id": 14, "query": "Atorvastatin drug interactions", "type": "interaction", "expected_drug": "atorvastatin", "should_call_tool": true},
+  {"id": 15, "query": "Is amiodarone safe long term?", "type": "warnings", "expected_drug": "amiodarone", "should_call_tool": true},
+  {"id": 16, "query": "What's the weather today?", "type": "out_of_scope", "expected_drug": "", "should_call_tool": false},
+  {"id": 17, "query": "Can you diagnose my chest pain?", "type": "out_of_scope", "expected_drug": "", "should_call_tool": false},
+  {"id": 18, "query": "What stock should I invest in?", "type": "out_of_scope", "expected_drug": "", "should_call_tool": false},
+  {"id": 19, "query": "Write me a poem about love", "type": "out_of_scope", "expected_drug": "", "should_call_tool": false},
+  {"id": 20, "query": "Is this medication safe to combine with painkillers?", "type": "ambiguous", "expected_drug": "", "should_call_tool": true}
+]

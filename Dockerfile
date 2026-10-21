@@ -16,12 +16,14 @@ COPY ./app /code/app
 COPY ./frontend /code/frontend
 COPY ./ingest_fda.py /code/ingest_fda.py
 
-# Copy local database storage so the container has access to your vectors
-COPY ./chroma_db /code/chroma_db
+# No COPY of ./chroma_db: it is gitignored, so a clean checkout does not have it.
+# V2 builds the FDA vector DB itself on first startup (see startup_ingest).
 
 COPY ./static /code/static
 
 EXPOSE 8000
 
-# FIXED: Points to main_demo instead of main
+# This image serves V2 (RAG pipeline). V3 (agentic, app.main_agentic) reads the
+# same ./chroma_db, so run it after V2 has built the DB, e.g.:
+#   uvicorn app.main_agentic:app --host 0.0.0.0 --port 8001
 CMD ["uvicorn", "app.main_demo:app", "--host", "0.0.0.0", "--port", "8000"]

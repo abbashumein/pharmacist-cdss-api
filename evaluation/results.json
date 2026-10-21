@@ -1,0 +1,92 @@
+[
+  {
+    "id": 11,
+    "query": "Metformin contraindications",
+    "type": "contraindication",
+    "tool_called": true,
+    "routing_correct": true,
+    "grounded": true,
+    "latency_ms": 10616
+  },
+  {
+    "id": 12,
+    "query": "Can patient take metformin with lisinopril?",
+    "type": "interaction",
+    "tool_called": true,
+    "routing_correct": true,
+    "grounded": false,
+    "latency_ms": 8867
+  },
+  {
+    "id": 13,
+    "query": "What are side effects of lisinopril?",
+    "type": "side_effects",
+    "tool_called": true,
+    "routing_correct": true,
+    "grounded": true,
+    "latency_ms": 6234
+  },
+  {
+    "id": 14,
+    "query": "Atorvastatin drug interactions",
+    "type": "interaction",
+    "tool_called": true,
+    "routing_correct": true,
+    "grounded": true,
+    "latency_ms": 12722
+  },
+  {
+    "id": 15,
+    "query": "Is amiodarone safe long term?",
+    "type": "warnings",
+    "tool_called": true,
+    "routing_correct": true,
+    "grounded": true,
+    "latency_ms": 11923
+  },
+  {
+    "id": 16,
+    "query": "What's the weather today?",
+    "type": "out_of_scope",
+    "tool_called": false,
+    "routing_correct": true,
+    "grounded": true,
+    "latency_ms": 6081
+  },
+  {
+    "id": 17,
+    "query": "Can you diagnose my chest pain?",
+    "type": "out_of_scope",
+    "tool_called": false,
+    "routing_correct": true,
+    "grounded": true,
+    "latency_ms": 4704
+  },
+  {
+    "id": 18,
+    "query": "What stock should I invest in?",
+    "type": "out_of_scope",
+    "tool_called": false,
+    "routing_correct": true,
+    "grounded": true,
+    "latency_ms": 3999
+  },
+  {
+    "id": 19,
+    "query": "Write me a poem about love",
+    "type": "out_of_scope",
+    "tool_called": false,
+    "routing_correct": true,
+    "grounded": true,
+    "latency_ms": 5494
+  },
+  {
+    "id": 20,
+    "query": "Is this medication safe to combine with painkillers?",
+    "type": "ambiguous",
+    "tool_called": false,
+    "routing_correct": false,
+    "grounded": true,
+    "latency_ms": 9555
+  }
+]

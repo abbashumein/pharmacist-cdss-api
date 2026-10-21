@@ -1,34 +1,33 @@
 name: MLOps Automated Pipeline
-on: [push]
+on: [push, pull_request]
 jobs:
-  build-and-deploy:
+  test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
-    - name: Install Dependencies
+        cache: pip
+    - name: Cache Hugging Face models (MiniLM + CrossEncoder)
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/huggingface
+        key: hf-models-v1
+    - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install fastapi pydantic uvicorn chromadb langgraph google-genai sentence-transformers python-dotenv
-    - name: Validate Core Imports
-      run: |
-        python -c "from fastapi import FastAPI; print('FastAPI OK')"
-        python -c "import chromadb; print('ChromaDB OK')"
-        python -c "from langgraph.graph import StateGraph; print('LangGraph OK')"
+        # CPU-only torch keeps the install small and fast
+        pip install torch --index-url https://download.pytorch.org/whl/cpu
+        pip install -r requirements.txt pytest httpx
+        pip install langchain-chroma==0.1.4 --no-deps
+    - name: Run tests
+      env:
+        GEMINI_API_KEY: test-key
+        CDSS_API_KEY: test-cdss-key
+      run: python -m pytest tests/test_agentic_session.py tests/test_v2_startup.py -v
 
-    # Azure deployment steps disabled — free tier expired.
-    # Re-enable when redeploying (Azure, Render, or HF Spaces).
-    # - name: Login to Azure
-    #   uses: azure/login@v1
-    #   ...
-    # - name: Login to ACR
-    #   ...
-    # - name: Build and Push Docker Image
-    #   ...
-    # - name: Deploy to Azure Container Apps
-    #   ...
-    # - name: Get Live URL
-    #   ...
+  # Azure deployment is disabled: the free tier ended. The app was deployed
+  # on Azure Container Apps earlier and now runs locally / in Docker.
+  # To re-enable, add a deploy job here that needs: test.

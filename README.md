@@ -4,7 +4,7 @@ A Clinical Decision Support System that assists pharmacists and healthcare profe
 
 The system exists in two versions:
 
-- **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage → retrieval → generation) over 834 real FDA drug labels. Per-drug retrieval with local all-     MiniLM-L6-v2 embeddings, 0.95 cosine similarity threshold, CrossEncoder reranking, and an LLM-based resolver that maps category references ("blood thinner",       "cholesterol pill") to actual drug names before retrieval — not a hardcoded keyword/synonym list.
+- **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage → retrieval → generation) over 834 real FDA drug labels. Per-drug retrieval with local all-     MiniLM-L6-v2 embeddings, 0.95 cosine similarity threshold, CrossEncoder reranking, and an LLM-based resolver that maps category references ("blood thinner",       "cholesterol pill") to a drug name before retrieval. The LLM picks from a fixed list of 12 supported drugs (see Known Limitations), so it is not open-vocabulary.
 
 - **V3 (Agentic RAG)** — LangGraph agent using real Gemini function-calling for tool routing: the model itself decides, per query, whether the
   fda_lookup tool is needed, rather than following a fixed pipeline shape
@@ -46,19 +46,19 @@ emotion detection, and full audit logging.
 * LangGraph agent loop — Gemini decides when FDA tool is needed
 * `check_fda_database()` tool — query rewriting + ChromaDB + CrossEncoder
 * Conditional routing — clinical queries → FDA tool, out-of-scope → direct refusal
-* 100% tool routing accuracy across 20 evaluation queries
-* 90% grounded responses — answers backed by retrieved FDA evidence
+* 95% tool routing accuracy (19/20) on a 20-query eval
+* 80% grounded responses (16/20) — drug named in the answer; see "How grounded is measured" below
 
 ### Evaluation Framework
 * V2: 24-query eval — 100% direct lookup, 83% interaction, 100% contraindication
-* V3: 20-query agent eval — 100% tool routing, 90% grounded responses
+* V3: 20-query agent eval — 95% tool routing (19/20), 80% grounded (16/20)
 * Separate retrieval and agent evaluation scripts
 
 ### Production Infrastructure
 * FastAPI backend with API key security and input validation
 * Docker containerized deployment
-* Azure Container Apps cloud hosting
-* GitHub Actions CI/CD pipeline
+* Docker image (V2); was deployed on Azure Container Apps — free tier ended, now runs locally/in Docker
+* GitHub Actions CI: runs the pytest regression tests on every push
 * Custom HTML/JS frontend served from same container
 * Full audit trail per query — retrieval distance, latency, confidence score
 
@@ -155,7 +155,7 @@ The system exists in two production-ready versions. All components are built, ev
 
 **Evaluation Framework**
 * V2: 24-query eval — direct lookup 100%, interaction 83%, contraindication 100%
-* V3: 20-query agent eval — tool routing 100%, grounded responses 90%
+* V3: 20-query agent eval — tool routing 95% (19/20), grounded 80% (16/20)
 * Separate evaluation scripts in /evaluation directory
 
 **Frontend UI**
@@ -166,9 +166,8 @@ The system exists in two production-ready versions. All components are built, ev
 
 **Containerization & Deployment**
 * Dockerized with Azure Container Registry
-* Azure Container Apps hosting
-* GitHub Actions CI/CD pipeline
-* Auto-deploy on every git push
+* Azure Container Apps hosting (was live; free tier ended — deploy steps are disabled)
+* GitHub Actions CI runs the regression tests on every push (no auto-deploy now)
 ---
 ## 🏗️ System Architecture
 
@@ -335,7 +334,7 @@ RAG or Agentic Retrieval Layer
 | Vector Database | ChromaDB + Gemini Embeddings |
 | LLM | Gemini 2.5 Flash |
 | Containerization | Docker |
-| Cloud Hosting | Azure Container Apps |
+| Cloud Hosting | Azure Container Apps (was live; free tier ended) |
 | CI/CD | GitHub Actions |
 | Frontend | Custom HTML/JS served via FastAPI |
 | Security | API Key middleware |
@@ -357,7 +356,7 @@ RAG or Agentic Retrieval Layer
 | Vector Database | ChromaDB PersistentClient |
 | Data Validation | Pydantic v2 |
 | Containerization | Docker |
-| Cloud Platform | Azure Container Apps |
+| Cloud Platform | Azure Container Apps (was live; free tier ended) |
 | Container Registry | Azure Container Registry |
 | CI/CD | GitHub Actions |
 | Data Source | openFDA API (806 FDA drug labels) |
@@ -382,8 +381,8 @@ RAG or Agentic Retrieval Layer
 | Evaluation | 24-query RAG eval + 20-query agent eval with grounding metrics |
 | API Engineering | FastAPI + Pydantic validation + input sanitization |
 | Containerization | Docker + Azure Container Registry |
-| CI/CD | GitHub Actions automated deployment |
-| Cloud Deployment | Azure Container Apps |
+| CI | GitHub Actions (tests on every push; deploy disabled) |
+| Cloud Deployment | Azure Container Apps (earlier; now disabled) |
 | MLOps | Auto-ingestion on startup + audit logging + retrieval distance tracking |
 | Security | API Key middleware + secret management |
 | Frontend Integration | Custom HTML/JS served from FastAPI |
@@ -396,8 +395,6 @@ RAG or Agentic Retrieval Layer
 | Drug Interaction Accuracy | 100% (4/4) | 83% (5/6) | 80% (4/5) |
 | Contraindication Accuracy | 100% (4/4) | 100% (6/6) | 100% (3/3) |
 | Out-of-Scope Rejection | Not tested | 100% (3/3) | 100% (4/4) |
-| Tool Routing Accuracy | N/A | N/A | Pending re-validation* |
-| Grounded Responses | N/A | N/A | Pending re-validation* |
 | Records in ChromaDB | 19 FDA labels | 444 FDA labels | 834 FDA labels |
 | Embedding Model | Gemini cloud API | Local all-MiniLM-L6-v2 | Local all-MiniLM-L6-v2 |
 | Reranker | None | CrossEncoder | CrossEncoder |
@@ -448,7 +445,19 @@ against the raw query text instead of the resolved drug name, discarding correct
 
   
 
+## How grounded is measured
+`evaluation/evaluate_agent.py` marks a drug question "grounded" only if: the FDA tool ran and found usable
+evidence, the answer names the expected drug, and the answer is not a refusal or an error fallback. Refusals
+are counted separately. It does **not** check that every claim in the answer appears in the retrieved text
+(claim-level check), so "grounded" here means "answered from retrieved evidence about the right drug", not
+"every sentence verified". The test cases are in `evaluation/test_cases.json`.
+
 ## Known Limitations
+* Only 12 drugs get per-drug retrieval (`TARGET_DRUGS`), although the DB holds 834 labels. For other drugs the
+  query falls back to a generic search, and the routing tool tells Gemini to map described drugs onto the 12.
+  A wrong mapping for a drug outside the list is a real risk for a clinical tool.
+* "Grounded" is a drug-name + evidence check, not a claim-level fact check (see above).
+* Sessions use in-memory `MemorySaver`: history is lost on restart and not shared across instances.
 * Corpus coverage is per-drug, not per-pair — an interaction can go undocumented even when
   both drugs are individually well-represented, and the system correctly refuses to guess
   rather than hallucinate

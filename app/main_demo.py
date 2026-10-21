@@ -374,9 +374,27 @@ workflow.add_edge("gemini_generation", "telemetry_parsing")
 workflow.add_edge("telemetry_parsing", END)
 cdss_engine = workflow.compile(checkpointer=MemorySaver())
 
+ingest_status = {"running": False, "done": False, "count": 0, "error": None}
+
+
 @app.on_event("startup")
 async def startup_ingest():
+    """Build the FDA vector DB only when it is empty.
+
+    Before: every startup deleted and rebuilt the collection, which wiped the
+    DB on each restart and left V3 holding a stale collection handle.
+    Now: a populated DB is reused. To force a rebuild, call POST /admin/ingest.
+    """
+    global ingest_status
     import threading
+    try:
+        existing = collection.count()
+    except Exception:
+        existing = 0
+    if existing > 0:
+        sys_logger.info(f"Vector DB already has {existing} chunks - skipping ingest")
+        ingest_status = {"running": False, "done": True, "count": existing, "error": None, "skipped": True}
+        return
     thread = threading.Thread(target=run_ingest)
     thread.daemon = True
     thread.start()
