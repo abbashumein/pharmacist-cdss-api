@@ -24,7 +24,7 @@ chroma_db_old_backup/
 *.json
 !app/static/*.json
 !evaluation/test_cases.json
-!evaluation/results.json
+!evaluation/results*.json
 # Python Cache
 __pycache__/
 *.pyc

@@ -5,8 +5,11 @@
     "type": "contraindication",
     "tool_called": true,
     "routing_correct": true,
-    "grounded": true,
-    "latency_ms": 10616
+    "grounded": false,
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 42586,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 12,
@@ -15,7 +18,10 @@
     "tool_called": true,
     "routing_correct": true,
     "grounded": false,
-    "latency_ms": 8867
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 53055,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 13,
@@ -23,8 +29,11 @@
     "type": "side_effects",
     "tool_called": true,
     "routing_correct": true,
-    "grounded": true,
-    "latency_ms": 6234
+    "grounded": false,
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 71340,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 14,
@@ -32,8 +41,11 @@
     "type": "interaction",
     "tool_called": true,
     "routing_correct": true,
-    "grounded": true,
-    "latency_ms": 12722
+    "grounded": false,
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 70649,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 15,
@@ -41,8 +53,11 @@
     "type": "warnings",
     "tool_called": true,
     "routing_correct": true,
-    "grounded": true,
-    "latency_ms": 11923
+    "grounded": false,
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 69509,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 16,
@@ -51,7 +66,10 @@
     "tool_called": false,
     "routing_correct": true,
     "grounded": true,
-    "latency_ms": 6081
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 74390,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 17,
@@ -60,7 +78,10 @@
     "tool_called": false,
     "routing_correct": true,
     "grounded": true,
-    "latency_ms": 4704
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 70477,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 18,
@@ -69,7 +90,10 @@
     "tool_called": false,
     "routing_correct": true,
     "grounded": true,
-    "latency_ms": 3999
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 67470,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 19,
@@ -78,15 +102,21 @@
     "tool_called": false,
     "routing_correct": true,
     "grounded": true,
-    "latency_ms": 5494
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 67162,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   },
   {
     "id": 20,
     "query": "Is this medication safe to combine with painkillers?",
     "type": "ambiguous",
-    "tool_called": false,
-    "routing_correct": false,
-    "grounded": true,
-    "latency_ms": 9555
+    "tool_called": true,
+    "routing_correct": true,
+    "grounded": false,
+    "refusal": false,
+    "fallback": true,
+    "latency_ms": 71317,
+    "response": "Sorry, I am temporarily unable to respond. Please try again."
   }
 ]
