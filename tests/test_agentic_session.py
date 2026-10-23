@@ -172,3 +172,38 @@ def test_gemini_outage_is_not_disguised_as_insufficient_data(client, monkeypatch
 
     assert "temporarily unable" in body["response"].lower()
     assert "sufficient fda data" not in body["response"].lower()
+
+
+def _gemini_that_fails_then_works(errors, calls):
+    def generate_content(model, contents, config=None):
+        calls.append(1)
+        if len(calls) <= len(errors):
+            raise RuntimeError(errors[len(calls) - 1])
+        return SimpleNamespace(text="ok")
+    return SimpleNamespace(models=SimpleNamespace(generate_content=generate_content))
+
+
+def test_retry_recovers_from_a_503_overload(monkeypatch):
+    calls = []
+    monkeypatch.setattr(main_agentic, "ai_client",
+                        _gemini_that_fails_then_works(["503 UNAVAILABLE high demand"], calls))
+    monkeypatch.setattr(main_agentic.time, "sleep", lambda s: None)
+
+    out = main_agentic.call_gemini_with_retry("m", "hello")
+
+    assert out.text == "ok"
+    assert len(calls) == 2  # failed once, retried once
+
+
+def test_daily_quota_fails_fast_without_waiting(monkeypatch):
+    calls = []
+    daily = "429 RESOURCE_EXHAUSTED GenerateRequestsPerDayPerProjectPerModel-FreeTier"
+    monkeypatch.setattr(main_agentic, "ai_client",
+                        _gemini_that_fails_then_works([daily] * 5, calls))
+    monkeypatch.setattr(main_agentic.time, "sleep",
+                        lambda s: (_ for _ in ()).throw(AssertionError("must not wait on a daily quota")))
+
+    with pytest.raises(RuntimeError):
+        main_agentic.call_gemini_with_retry("m", "hello")
+
+    assert len(calls) == 1  # no pointless retries

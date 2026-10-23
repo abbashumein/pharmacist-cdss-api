@@ -46,10 +46,19 @@ def call_gemini_with_retry(model: str, contents, config=None, max_retries: int =
         except Exception as e:
             error_str = str(e)
             is_quota_error = "429" in error_str or "RESOURCE_EXHAUSTED" in error_str
-            if not is_quota_error or attempt == max_retries:
+            # 503 = Gemini overloaded for a moment. Short spikes are worth a retry.
+            is_busy_error = "503" in error_str or "UNAVAILABLE" in error_str
+            if not (is_quota_error or is_busy_error) or attempt == max_retries:
                 raise
-            match = re.search(r"retry in ([\d.]+)s", error_str)
-            wait_seconds = float(match.group(1)) + 2 if match else 15
+            # A DAILY quota will not recover in seconds: fail fast instead of
+            # waiting ~30s per call (this made failing eval runs take ~70s/query).
+            if "PerDay" in error_str:
+                raise
+            if is_busy_error and not is_quota_error:
+                wait_seconds = 5 * (attempt + 1)
+            else:
+                match = re.search(r"retry in ([\d.]+)s", error_str)
+                wait_seconds = float(match.group(1)) + 2 if match else 15
             sys_logger.error(
                 f"Quota hit (attempt {attempt + 1}/{max_retries + 1}), "
                 f"waiting {wait_seconds:.0f}s before retry"

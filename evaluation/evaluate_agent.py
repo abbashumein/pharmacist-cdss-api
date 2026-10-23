@@ -10,6 +10,9 @@ if not API_KEY:
     raise SystemExit("Set the CDSS_API_KEY environment variable before running.")
 BASE_URL = os.environ.get("CDSS_URL", "http://127.0.0.1:8001/chat")
 
+KNOWN_DRUGS = ["warfarin", "amiodarone", "aspirin", "ibuprofen", "metformin", "lisinopril",
+               "atorvastatin", "omeprazole", "amlodipine", "metoprolol", "levothyroxine", "albuterol"]
+
 REFUSAL_TEXT = "don't have sufficient fda data"
 FALLBACK_TEXT = "temporarily unable"
 
@@ -88,10 +91,16 @@ for case in test_cases:
     # Still NOT checked: that every claim in the answer appears in the
     # retrieved chunk (claim-level check). Do not describe this as that.
     if case.get("expected_drug"):
+        # Interaction questions: the answer must name EVERY drug asked about.
+        # (Otherwise "warfarin interacts with bleeding drugs" passes a
+        # warfarin+aspirin question without ever mentioning aspirin.)
+        required = [case["expected_drug"].lower()]
+        if case["type"] == "interaction":
+            required = [d for d in KNOWN_DRUGS if d in case["query"].lower()] or required
         grounded = (
             tool_called
             and fda_used
-            and case["expected_drug"].lower() in response
+            and all(term in response for term in required)
             and not is_refusal
             and not is_fallback
         )
