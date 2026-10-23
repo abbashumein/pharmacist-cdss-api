@@ -1,0 +1,37 @@
+# Virtual Environments (Strict Dot Match)
+.venv/
+venv/
+ENV/
+env/
+# Secret API Keys and Credentials
+.env
+# IDE & Editor files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+# Heavy Data & Model Weights
+weights/
+chroma_storage/
+chroma_db/
+chroma_db_debug/
+chroma_db_old_backup/
+*.zip
+*.tar.gz
+*.json
+!app/static/*.json
+!evaluation/test_cases.json
+!evaluation/results*.json
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+# Debug/error artifacts
+ingest_error.log
+debug_ingest.py
+mintty.*.png

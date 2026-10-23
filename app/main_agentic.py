@@ -167,6 +167,33 @@ def _intent_keywords(lower_query: str) -> List[str]:
     return keywords
 
 
+MAX_EVIDENCE_CHUNKS = 6   # prompt-size cap
+
+
+def select_evidence(usable: list, max_chunks: int = MAX_EVIDENCE_CHUNKS) -> list:
+    """Pick the final evidence chunks from (score, doc, dist, drug) tuples.
+
+    Each drug is retrieved separately so no drug is crowded out of the
+    SEARCH. But a plain global "top 5 by score" cut brings the crowding back
+    at the END: if warfarin's chunks score higher than aspirin's, all 5 slots
+    go to warfarin, the model never sees aspirin, and it correctly refuses to
+    answer the interaction. So each drug gets an equal share of the slots.
+    """
+    ranked = sorted(usable, key=lambda x: x[0], reverse=True)
+    n_drugs = max(1, len({item[3] for item in ranked}))
+    per_drug = max(1, max_chunks // n_drugs)
+    counts, picked = {}, []
+    for item in ranked:
+        drug = item[3]
+        if counts.get(drug, 0) >= per_drug:
+            continue
+        counts[drug] = counts.get(drug, 0) + 1
+        picked.append(item)
+        if len(picked) >= max_chunks:
+            break
+    return picked
+
+
 def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict[str, Any]:
     """
     Returns a structured dict the agent can reason over.
@@ -251,8 +278,8 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
                 "chunks": []
             }
 
-        # Keep the strongest evidence overall, capped at 5 for prompt size
-        usable = sorted(usable, key=lambda x: x[0], reverse=True)[:5]
+        # Keep the strongest evidence, but never let one drug take every slot
+        usable = select_evidence(usable)
         best_distance = min(d for _, _, d, _ in usable)
 
         evidence_lines = []
@@ -456,6 +483,7 @@ USER QUERY: {user_message}
 
 This is not a drug-related question. Respond normally per rule 0, then end with the RISK_LEVEL line."""
 
+    llm_failed = False
     try:
         response = call_gemini_with_retry(
             model="gemini-2.5-flash",
@@ -463,6 +491,7 @@ This is not a drug-related question. Respond normally per rule 0, then end with 
         )
         raw = response.text.strip()
     except Exception as e:
+        llm_failed = True
         sys_logger.critical(f"Gemini error: {str(e)}")
         raw = "Sorry, I am temporarily unable to respond. Please try again.\nRISK_LEVEL: LOW"
 
@@ -480,7 +509,9 @@ This is not a drug-related question. Respond normally per rule 0, then end with 
     # has_usable_evidence is False by default — that must NOT be mistaken
     # for "FDA data was insufficient", or every out-of-scope question
     # incorrectly gets the FDA-shortfall message instead of a normal reply.
-    if state.tool_called and not state.has_usable_evidence:
+    # Skip it when Gemini itself failed: an outage/quota error must stay visible
+    # as an error, not look like a clinical "insufficient data" refusal.
+    if state.tool_called and not state.has_usable_evidence and not llm_failed:
         if "sufficient FDA data" not in clean.lower():
             clean = "I don't have sufficient FDA data for this query.\n\nThis is AI assistance. Final decision should be made by a licensed pharmacist or doctor."
         if risk == "HIGH":

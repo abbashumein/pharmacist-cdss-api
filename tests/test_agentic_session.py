@@ -144,3 +144,31 @@ def test_chat_endpoints_are_sync_so_they_run_in_a_threadpool():
     import inspect
 
     assert not inspect.iscoroutinefunction(main_agentic.agent_chat)
+
+
+def test_gemini_outage_is_not_disguised_as_insufficient_data(client, monkeypatch):
+    """Routing works, retrieval finds nothing, then Gemini fails (e.g. 429 quota).
+    The user must see an error message, not a clinical "insufficient FDA data"
+    refusal, otherwise outages look like real refusals in logs and evals."""
+
+    def no_evidence(query, extracted_drug=None):
+        return {"has_usable_evidence": False, "retrieval_distance": None,
+                "evidence_text": "No sufficiently relevant FDA evidence found for this query.",
+                "chunks": []}
+
+    def fake_gemini(model, contents, config=None, max_retries=2):
+        if config is not None:  # routing call works
+            fn = SimpleNamespace(name="fda_lookup", args={"drug_name": "warfarin"})
+            part = SimpleNamespace(function_call=fn)
+            return SimpleNamespace(
+                candidates=[SimpleNamespace(content=SimpleNamespace(parts=[part]))]
+            )
+        raise RuntimeError("429 RESOURCE_EXHAUSTED")  # generation call fails
+
+    monkeypatch.setattr(main_agentic, "check_fda_database", no_evidence)
+    monkeypatch.setattr(main_agentic, "call_gemini_with_retry", fake_gemini)
+
+    body = _chat(client, "outage-session", "What does FDA say about warfarin dosing?")
+
+    assert "temporarily unable" in body["response"].lower()
+    assert "sufficient fda data" not in body["response"].lower()

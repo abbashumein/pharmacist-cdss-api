@@ -27,6 +27,8 @@ print(f"Running queries {start} to {end - 1} ({len(test_cases)} total)\n")
 
 results = []
 category_stats = {}
+invalid = 0
+consecutive_invalid = 0
 
 print("=" * 60)
 print("PHARMACIST CDSS V3 — AGENT EVALUATION")
@@ -57,6 +59,23 @@ for case in test_cases:
 
     is_refusal = REFUSAL_TEXT in response
     is_fallback = FALLBACK_TEXT in response
+
+    # A Gemini quota/error fallback is NOT a model answer. Counting it (as
+    # pass OR fail) corrupts the score: the weather question "passed" only
+    # because nothing worked. Mark it INVALID, leave it out of every
+    # percentage, and stop after 2 in a row (daily quota is gone).
+    if is_fallback:
+        invalid += 1
+        consecutive_invalid += 1
+        print(f"Q{case['id']} [{case['type']}]: ⚠️ INVALID (Gemini quota/error fallback, not counted) — {case['query'][:50]}")
+        results.append({"id": case["id"], "query": case["query"], "type": case["type"],
+                        "invalid": True, "response": data.get("response", "")})
+        if consecutive_invalid >= 2:
+            print("\nSTOPPING: 2 invalid results in a row. Gemini quota is probably used up. "
+                  "Run the remaining queries after the daily reset.")
+            break
+        continue
+    consecutive_invalid = 0
 
     # Evidence grounding (STRICTER than before).
     # Old rule: the expected drug name appears in the answer. A made-up
@@ -135,9 +154,15 @@ for cat, stats in category_stats.items():
     total += t
     print(f"{cat:20s}: routing {r}/{t} = {r/t*100:.0f}% | grounded {g}/{t} = {g/t*100:.0f}% | refusals {stats['refusals']}")
 
+print(f"\nInvalid (quota/error, excluded): {invalid}")
+if total == 0:
+    print("No valid results. Nothing to score.")
+    raise SystemExit(1)
 print(f"\n{'OVERALL':20s}: routing {total_routing}/{total} = {total_routing/total*100:.0f}% | grounded {total_grounded}/{total} = {total_grounded/total*100:.0f}%")
 
-with open("evaluation/results.json", "w") as f:
+# One file per slice, so running 0-9 and then 10-19 does not overwrite the first run.
+out_path = f"evaluation/results_{start}-{end - 1}.json"
+with open(out_path, "w") as f:
     json.dump(results, f, indent=2)
 
-print("\nSaved to evaluation/results.json")
+print(f"\nSaved to {out_path}")
