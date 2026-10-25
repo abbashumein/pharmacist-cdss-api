@@ -113,3 +113,12 @@ def test_summary_counts_calls_tokens_and_latency():
     s = ev.summarize(cases, records, {1: {"ok": True}, 2: {"ok": False}}, {})
     assert s["run_end_to_end"] == 2 and s["calls_per_question"] == 0.5
     assert s["prompt_tokens_mean"] == 50 and s["retrieval_ok_pct"] == 50.0
+
+
+def test_summary_reports_latency_and_tokens_for_answered_questions_only():
+    cases = [case(id=1), case(id=2)]
+    records = {1: {**rec("Aspirin raises bleeding risk."), "prompt_tokens": 100, "output_tokens": 20, "latency_ms": 1000},
+               2: {**rec("I can only help with medication questions.", 0, []), "prompt_tokens": 0,
+                   "output_tokens": 0, "latency_ms": 5}}
+    s = ev.summarize(cases, records, {}, {})
+    assert s["answered_latency_ms_p50"] == 1000 and s["answered_prompt_tokens_mean"] == 100

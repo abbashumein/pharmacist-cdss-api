@@ -89,3 +89,23 @@ def test_intent_sections_cover_the_questions_that_failed():
     assert "Stop Use" in f("when should i stop using aspirin?")
     assert "Indications" in f("what is ibuprofen used for?")
     assert "Boxed Warning" in f("what is the boxed warning for warfarin?")
+
+
+def test_duplicate_label_text_does_not_fill_every_slot(monkeypatch):
+    same = "5 WARNINGS Abrupt cessation may exacerbate myocardial ischemia. Heart failure may occur."
+    docs = [(f"Drug: METOPROLOL TARTRATE ({n}) | Section: Warnings | {same}", 0.5 + i / 100)
+            for i, n in enumerate(["A", "B", "C", "D"])]
+    docs.append(("Drug: METOPROLOL | Section: Warnings | Bronchospastic disease: avoid beta-blockers.", 0.6))
+    install(monkeypatch, docs)
+    res = main_agentic.check_fda_database("What are the warnings for metoprolol?")
+    assert sum("Abrupt cessation" in c for c in res["chunks"]) == 1
+    assert any("Bronchospastic" in c for c in res["chunks"])
+
+
+def test_interaction_search_also_mentions_the_other_drug(monkeypatch):
+    db = install(monkeypatch, [("Drug: AMIODARONE | Section: Interactions | warfarin potentiation", 0.4),
+                               ("Drug: WARFARIN | Section: Interactions | amiodarone", 0.4)] * 2)
+    main_agentic.check_fda_database("I take warfarin and amiodarone together. What should I watch for?")
+    queries = [c["q"] for c in db.calls]
+    assert any(q.startswith("Drug: warfarin") and "amiodarone" in q for q in queries)
+    assert any(q.startswith("Drug: amiodarone") and "warfarin" in q for q in queries)

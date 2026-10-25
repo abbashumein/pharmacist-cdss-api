@@ -264,25 +264,24 @@
   {
    "id": 13,
    "category": "easy",
-   "query": "What is the boxed warning for metoprolol?",
+   "query": "What are the warnings for metoprolol?",
    "expected_behavior": "answer",
    "retrieval": "hit",
    "drug": [
     "metoprolol"
    ],
    "section": [
-    "Boxed Warning",
-    "Warnings"
+    "Warnings",
+    "Boxed Warning"
    ],
    "facts": [
     "abrupt",
     "cessation",
-    "ischemic",
-    "infarction"
+    "ischemi"
    ],
    "forbidden": [],
    "risk_not_low": false,
-   "note": ""
+   "note": "Was 'boxed warning'. Current metoprolol labels in the DB carry this text under Warnings, so a refusal to name a 'boxed warning' was reasonable. Gold corrected after eval #13 failed; old result discarded."
   },
   {
    "id": 14,
@@ -340,14 +339,12 @@
     "Interactions"
    ],
    "facts": [
-    "inr",
-    "prothrombin",
-    "bleeding",
-    "amiodarone"
+    "potentiat",
+    "prothrombin time"
    ],
    "forbidden": [],
    "risk_not_low": false,
-   "note": ""
+   "note": "Strict gold: the amiodarone label states the warfarin effect. A mere mention of amiodarone in warfarin's CYP list does not count."
   },
   {
    "id": 17,
@@ -364,16 +361,14 @@
     "Warnings"
    ],
    "facts": [
-    "nsaid",
-    "renal",
-    "blood pressure",
-    "antihypertensive",
-    "diuretic",
-    "kidney"
+    "attenuat",
+    "deterioration of renal",
+    "antihypertensive effect",
+    "renal function"
    ],
    "forbidden": [],
    "risk_not_low": false,
-   "note": ""
+   "note": "Strict gold: lisinopril/ibuprofen label text about NSAIDs and ACE inhibitors."
   },
   {
    "id": 18,

@@ -234,7 +234,7 @@ def _intent_sections(lower_query: str) -> List[str]:
     return found
 
 
-CANDIDATES = 24   # retrieve wide, then the reranker narrows to MAX_EVIDENCE_CHUNKS
+CANDIDATES = 40   # retrieve wide, then the reranker narrows to MAX_EVIDENCE_CHUNKS
 
 # Words that are NOT a drug name. Used to find the drug term in a vague question:
 # if no remaining word appears in any chunk's drug name, there is nothing to answer from.
@@ -256,6 +256,22 @@ def _drug_terms(lower_query: str) -> List[str]:
 def _chunk_drug_name(doc: str) -> str:
     """The drug part of a chunk: 'Drug: WARFARIN (Coumadin) | Section: ...' -> 'warfarin (coumadin)'."""
     return doc.split(" | Section:")[0].lower()
+
+
+def _dedupe(ranked: list) -> list:
+    """Drop near-identical chunks. Many manufacturers publish the same label text, so the
+    top results can be the same paragraph 3-5 times and crowd out other useful chunks.
+    ranked: [(score, doc, distance), ...] best first. Keeps the best copy of each."""
+    seen, out = set(), []
+    for item in ranked:
+        doc = item[1]
+        body = doc.split(" | Section:", 1)[-1]
+        key = re.sub(r"\W+", " ", body.lower())[:160]
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+    return out
 
 
 def _search(text: str, sections: List[str], n: int = CANDIDATES) -> dict:
@@ -311,6 +327,11 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
                 sections = _intent_sections(lower_query)
                 embed_query = (f"Drug: {drug} | Section: {', '.join(sections)}"
                                if sections else f"Drug: {drug}")
+                partners = [d for d in found_drugs if d != drug]
+                if partners:
+                    # Interaction question: also search for text that mentions the other drug,
+                    # otherwise each drug's own long Interactions section hides the pair.
+                    embed_query += " | " + ", ".join(partners)
                 drug_query = f"{query} ({drug})"      # reranker sees the real question
                 db_results = _search(embed_query, sections)
                 documents = db_results.get("documents", [[]])[0]
@@ -329,7 +350,7 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
                 scores = reranker.predict(pairs)
                 ranked = sorted(zip(scores, documents, distances), key=lambda x: x[0], reverse=True)
 
-                for score, doc, dist in ranked:
+                for score, doc, dist in _dedupe(ranked):
                     all_distances.append(dist)
                     if dist < SIMILARITY_THRESHOLD:
                         usable.append((score, doc, dist, drug))
@@ -351,7 +372,7 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
                 pairs = [[search_query, doc] for doc in documents]
                 scores = reranker.predict(pairs)
                 ranked = sorted(zip(scores, documents, distances), key=lambda x: x[0], reverse=True)
-                for score, doc, dist in ranked:
+                for score, doc, dist in _dedupe(ranked):
                     all_distances.append(dist)
                     if dist < SIMILARITY_THRESHOLD:
                         usable.append((score, doc, dist, None))
@@ -486,7 +507,11 @@ def tool_node(state: AgentState) -> Dict[str, Any]:
 
 CLINICAL_HINTS = ["drug", "medication", "medicine", "dose", "dosage", "dosing", "interaction",
                   "side effect", "contraindicat", "safe to take", "take with", "pregnan",
-                  "alcohol", "overdose", "tablet", "pill", "painkiller", "antibiotic"]
+                  "alcohol", "overdose", "tablet", "pill", "painkiller", "antibiotic",
+                  # found by the eval: "Is tramadol addictive?" was sent to the out-of-scope reply
+                  "addict", "dependen", "withdraw", "prescri", "interact", "warning", "adverse",
+                  "allerg", "breastfeed", "habit-forming", "is it safe", "safe with", "mg",
+                  "antidepress", "opioid", "anticoag", "nsaid", "indicated", "used for"]
 
 
 def local_route(message: str) -> str:

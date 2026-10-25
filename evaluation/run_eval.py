@@ -191,6 +191,7 @@ def percentile(values, q):
 def summarize(cases: list, records: dict, retrieval_rows: dict, judge: dict) -> dict:
     cat = {}
     lat, ptok, otok, calls = [], [], [], []
+    alat, aptok, aotok = [], [], []        # only questions that called the model
     faiths = []
     for case in cases:
         c = cat.setdefault(case["category"], {"n": 0, "run": 0, "correct": 0, "retr_n": 0, "retr_ok": 0})
@@ -209,6 +210,10 @@ def summarize(cases: list, records: dict, retrieval_rows: dict, judge: dict) -> 
         ptok.append(rec.get("prompt_tokens", 0))
         otok.append(rec.get("output_tokens", 0))
         calls.append(rec.get("llm_calls", 0))
+        if rec.get("llm_calls", 0) > 0:
+            alat.append(rec["latency_ms"])
+            aptok.append(rec.get("prompt_tokens", 0))
+            aotok.append(rec.get("output_tokens", 0))
         if s["faithful_lex"] is not None:
             faiths.append(s["faithful_lex"])
     pct = lambda a, b: round(100 * a / b, 1) if b else None
@@ -223,6 +228,9 @@ def summarize(cases: list, records: dict, retrieval_rows: dict, judge: dict) -> 
         "faithful_judge_mean": round(statistics.mean(score.get(j["faithful"], 0) for j in judged), 3) if judged else None,
         "correct_judge_mean": round(statistics.mean(score.get(j.get("correct"), 0) for j in judged), 3) if judged else None,
         "latency_ms_p50": percentile(lat, 0.5), "latency_ms_p95": percentile(lat, 0.95),
+        "answered_latency_ms_p50": percentile(alat, 0.5), "answered_latency_ms_p95": percentile(alat, 0.95),
+        "answered_prompt_tokens_mean": round(statistics.mean(aptok)) if aptok else None,
+        "answered_output_tokens_mean": round(statistics.mean(aotok)) if aotok else None,
         "calls_per_question": round(statistics.mean(calls), 2) if calls else None,
         "max_calls_one_question": max(calls) if calls else None,
         "prompt_tokens_mean": round(statistics.mean(ptok)) if ptok else None,
@@ -434,15 +442,32 @@ def run_judge(max_calls: int):
         print(f"judged {len(batch)} answers in 1 call")
 
 
+def show(case_id: int):
+    """Print one stored result: the question, what was retrieved, the answer, the score. No model call."""
+    cases = {c["id"]: c for c in load_cases()}
+    rec = read_jsonl(E2E_FILE).get(case_id)
+    if case_id not in cases or rec is None:
+        raise SystemExit(f"case {case_id} not run yet")
+    case = cases[case_id]
+    print("QUESTION:", case["query"])
+    print("EXPECTED:", case["expected_behavior"], case["drug"], case["section"], case["facts"])
+    for i, c in enumerate(rec["chunks"], 1):
+        print(f"--- chunk {i} ---\n{c[:400]}")
+    print("\nANSWER:", rec["response"])
+    print("RISK:", rec["risk_level"], " CALLS:", rec["llm_calls"])
+    print("SCORE:", {k: v for k, v in score_case(case, rec).items() if k != "unsupported"})
+
+
 def report():
     cases = load_cases()
     records = read_jsonl(E2E_FILE)
     judge = json.load(open(JUDGE_FILE)) if os.path.exists(JUDGE_FILE) else {}
     retr = {}
-    path = os.path.join(RUNS, "retrieval_after.json")
-    if not os.path.exists(path):
-        path = os.path.join(RUNS, "retrieval_baseline.json")
-    if os.path.exists(path):
+    files = [os.path.join(RUNS, f) for f in os.listdir(RUNS)
+             if f.startswith("retrieval_") and f.endswith(".json")] if os.path.isdir(RUNS) else []
+    path = max(files, key=os.path.getmtime) if files else None   # newest retrieval run
+    if path:
+        print("retrieval numbers from", os.path.basename(path))
         for d in json.load(open(path))["details"]:
             retr[d["id"]] = d["score"]
     summary = summarize(cases, records, retr, judge)
@@ -468,10 +493,20 @@ if __name__ == "__main__":
     ap.add_argument("--show-fail", action="store_true")
     ap.add_argument("--judge", action="store_true")
     ap.add_argument("--report", action="store_true")
+    ap.add_argument("--redo", type=int, nargs="+", help="forget stored results of these question ids so they run again")
+    ap.add_argument("--show", type=int, help="print the stored result of one question id")
     ap.add_argument("--only-free", action="store_true", help="run only the questions that need no Gemini call")
     ap.add_argument("--max-calls", type=int, default=18, help="Gemini calls allowed per day (quota is 20)")
     a = ap.parse_args()
-    if a.retrieval_only:
+    if a.redo:
+        kept = [r for i, r in read_jsonl(E2E_FILE).items() if i not in set(a.redo)]
+        with open(E2E_FILE, "w") as f:
+            for r in kept:
+                f.write(json.dumps(r) + "\n")
+        print("will rerun:", a.redo)
+    elif a.show:
+        show(a.show)
+    elif a.retrieval_only:
         run_retrieval_only(a.label, a.show_fail)
     elif a.judge:
         run_judge(a.max_calls)
