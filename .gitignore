@@ -35,3 +35,9 @@ __pycache__/
 ingest_error.log
 debug_ingest.py
 mintty.*.png
+# eval quota counter (local only)
+evaluation/runs/quota.json
+
+!evaluation/eval_set.json
+!evaluation/runs/*.json
+evaluation/runs/quota.json

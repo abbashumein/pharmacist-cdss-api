@@ -85,7 +85,10 @@ def test_second_turn_same_session_gets_fresh_evidence(client, monkeypatch):
     assert "EVIDENCE-FOR-WARFARIN" in first["response"]
 
     # Turn 2 must be routed again AND use new evidence, not turn 1's.
-    assert len(routing_calls) == 2, "turn 2 skipped routing (stale tool_called)"
+    # Named drugs are routed locally (free), so no routing LLM call is needed,
+    # but each turn must still run its own retrieval and generation.
+    assert len(routing_calls) == 0
+    assert len(generation_calls) == 2, "turn 2 reused turn 1's answer (stale tool_called)"
     assert "EVIDENCE-FOR-METFORMIN" in second["response"]
     assert "EVIDENCE-FOR-WARFARIN" not in second["response"]
     assert second["tool_called"] is True
@@ -147,14 +150,14 @@ def test_chat_endpoints_are_sync_so_they_run_in_a_threadpool():
 
 
 def test_gemini_outage_is_not_disguised_as_insufficient_data(client, monkeypatch):
-    """Routing works, retrieval finds nothing, then Gemini fails (e.g. 429 quota).
+    """Retrieval finds evidence, then Gemini fails (e.g. 429 quota).
     The user must see an error message, not a clinical "insufficient FDA data"
     refusal, otherwise outages look like real refusals in logs and evals."""
 
     def no_evidence(query, extracted_drug=None):
-        return {"has_usable_evidence": False, "retrieval_distance": None,
-                "evidence_text": "No sufficiently relevant FDA evidence found for this query.",
-                "chunks": []}
+        # Evidence IS found, so the model must be called, and the model call fails.
+        return {"has_usable_evidence": True, "retrieval_distance": 0.4,
+                "evidence_text": "Drug: WARFARIN | Section: Dosage | text", "chunks": ["x"]}
 
     def fake_gemini(model, contents, config=None, max_retries=2):
         if config is not None:  # routing call works
@@ -207,3 +210,35 @@ def test_daily_quota_fails_fast_without_waiting(monkeypatch):
         main_agentic.call_gemini_with_retry("m", "hello")
 
     assert len(calls) == 1  # no pointless retries
+
+
+def test_named_drug_costs_one_llm_call_not_two(client, monkeypatch):
+    routing_calls, generation_calls = [], []
+    monkeypatch.setattr(main_agentic, "check_fda_database", _fake_fda)
+    monkeypatch.setattr(main_agentic, "call_gemini_with_retry",
+                        _fake_gemini_factory(routing_calls, generation_calls))
+    _chat(client, "cost-1", "Can warfarin and aspirin be taken together?")
+    assert len(routing_calls) == 0 and len(generation_calls) == 1
+
+
+def test_clinical_question_without_a_drug_name_makes_no_routing_call_by_default(client, monkeypatch):
+    routing_calls, generation_calls = [], []
+    monkeypatch.setattr(main_agentic, "check_fda_database", _fake_fda)
+    monkeypatch.setattr(main_agentic, "call_gemini_with_retry",
+                        _fake_gemini_factory(routing_calls, generation_calls))
+    _chat(client, "cost-2", "Is it safe to take this pill with alcohol?")
+    # Local mode: search with the raw question, no LLM router (ROUTER_MODE=llm restores it).
+    assert len(routing_calls) == 0 and len(generation_calls) <= 1
+
+
+def test_off_topic_question_makes_no_routing_call(client, monkeypatch):
+    routing_calls = []
+
+    def fake(model, contents, config=None, max_retries=2):
+        if config is not None:
+            routing_calls.append(contents)
+        return SimpleNamespace(text="Not a drug question.\nRISK_LEVEL: LOW")
+
+    monkeypatch.setattr(main_agentic, "call_gemini_with_retry", fake)
+    _chat(client, "cost-3", "What is the capital of France?")
+    assert routing_calls == []

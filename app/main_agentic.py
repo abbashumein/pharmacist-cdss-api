@@ -96,6 +96,14 @@ if not GEMINI_API_KEY:
 
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
+# The free-tier daily quota is counted per model and per request. This agent makes AT MOST
+# ONE Gemini call per question: routing is local and free, and questions that need no
+# answer from the model (out of scope, no usable evidence) make zero calls.
+# ROUTER_MODE=llm brings back the old extra LLM routing call for vague clinical questions.
+ROUTER_MODE = os.getenv("ROUTER_MODE", "local")
+ROUTING_MODEL = os.getenv("ROUTING_MODEL", "gemini-2.5-flash")
+GENERATION_MODEL = os.getenv("GENERATION_MODEL", "gemini-2.5-flash")
+
 # Same local embedding model used by CDSS V2
 embedding_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
@@ -169,14 +177,14 @@ def _intent_keywords(lower_query: str) -> List[str]:
         keywords.append("contraindication")
     if any(w in lower_query for w in ["side effect", "side effects", "adverse", "reaction", "reactions"]):
         keywords.append("adverse reactions side effects")
-    if any(w in lower_query for w in ["dose", "dosage", "how much", "mg"]):
+    if any(w in lower_query for w in ["dose", "dosage", "dosing", "how much", "mg"]):
         keywords.append("dosage administration")
     if any(w in lower_query for w in ["warning", "warnings", "danger"]):
         keywords.append("warnings")
     return keywords
 
 
-MAX_EVIDENCE_CHUNKS = 6   # prompt-size cap
+MAX_EVIDENCE_CHUNKS = 8   # prompt-size cap (chunks are ~900 chars now)
 
 
 def select_evidence(usable: list, max_chunks: int = MAX_EVIDENCE_CHUNKS) -> list:
@@ -201,6 +209,24 @@ def select_evidence(usable: list, max_chunks: int = MAX_EVIDENCE_CHUNKS) -> list
         if len(picked) >= max_chunks:
             break
     return picked
+
+
+INTENT_SECTIONS = [
+    (["interaction", "interact", "together", "combine", "mix", "with "], ["Interactions"]),
+    (["contraindication", "contraindications", "should not", "cannot", "avoid"], ["Contraindications"]),
+    (["side effect", "side effects", "adverse", "reaction", "reactions"], ["Side Effects"]),
+    (["dose", "dosage", "dosing", "how much", " mg"], ["Dosage"]),
+    (["warning", "warnings", "danger", "safe", "long term"], ["Warnings", "Boxed Warning"]),
+]
+
+
+def _intent_sections(lower_query: str) -> List[str]:
+    """Section names (as stored in chunk headers) the question is about."""
+    found: List[str] = []
+    for words, labels in INTENT_SECTIONS:
+        if any(w in lower_query for w in words):
+            found += [l for l in labels if l not in found]
+    return found
 
 
 def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict[str, Any]:
@@ -240,10 +266,15 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
 
         if found_drugs:
             for drug in found_drugs:
-                drug_query = f"{drug} {intent_string}".strip()
+                # Search text mirrors the chunk header ("Drug: X | Section: Y |")
+                # so the embedding compares like with like.
+                sections = _intent_sections(lower_query)
+                embed_query = (f"Drug: {drug} | Section: {', '.join(sections)}"
+                               if sections else f"Drug: {drug}")
+                drug_query = f"{query} ({drug})"      # reranker sees the real question
                 db_results = collection.query(
-                    query_texts=[drug_query],
-                    n_results=5,
+                    query_texts=[embed_query],
+                    n_results=8,
                     include=["documents", "distances"]
                 )
                 documents = db_results.get("documents", [[]])[0]
@@ -332,6 +363,9 @@ class AgentState(BaseModel):
     tool_called: bool = False
     risk_level: str = "LOW"
     extracted_drug: Optional[str] = None    # NEW — drug name Gemini pulled out during routing
+    llm_calls: int = 0                      # Gemini calls made this turn
+    prompt_tokens: int = 0
+    output_tokens: int = 0
 
 
 def build_turn_state(session_id: str, message: str) -> Dict[str, Any]:
@@ -355,6 +389,9 @@ def build_turn_state(session_id: str, message: str) -> Dict[str, Any]:
         "tool_called": False,
         "risk_level": "LOW",
         "extracted_drug": None,
+        "llm_calls": 0,
+        "prompt_tokens": 0,
+        "output_tokens": 0,
     }
 
 
@@ -401,6 +438,39 @@ def tool_node(state: AgentState) -> Dict[str, Any]:
     }
 
 
+CLINICAL_HINTS = ["drug", "medication", "medicine", "dose", "dosage", "dosing", "interaction",
+                  "side effect", "contraindicat", "safe to take", "take with", "pregnan",
+                  "alcohol", "overdose", "tablet", "pill", "painkiller", "antibiotic"]
+
+
+def local_route(message: str) -> str:
+    """Free router. "tool" = a known drug is named; "ask_llm" = looks clinical but no
+    known drug (let the LLM decide); "none" = not a drug question (no LLM call)."""
+    lower = message.lower()
+    if any(drug in lower for drug in TARGET_DRUGS):
+        return "tool"
+    if any(hint in lower for hint in CLINICAL_HINTS):
+        return "ask_llm"
+    return "none"
+
+
+SCOPE_REPLY = ("I can only help with medication questions (interactions, dosing, side effects, "
+               "warnings) using FDA drug labels. Please ask me about a specific drug. "
+               "If this is a medical emergency, contact your local emergency services now.\n\n"
+               "This is AI assistance. Final decision should be made by a licensed pharmacist or doctor.")
+NO_DATA_REPLY = ("I don't have sufficient FDA data for this query.\n\n"
+                 "This is AI assistance. Final decision should be made by a licensed pharmacist or doctor.")
+
+
+def _usage(response) -> tuple:
+    """(prompt_tokens, output_tokens) from a Gemini response; 0 when not available."""
+    meta = getattr(response, "usage_metadata", None)
+    def num(name):
+        value = getattr(meta, name, 0)
+        return value if isinstance(value, int) else 0
+    return num("prompt_token_count"), num("candidates_token_count")
+
+
 def agent_node(state: AgentState) -> Dict[str, Any]:
     """Gemini decides whether to call FDA tool or respond.
 
@@ -414,38 +484,58 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
 
     # First pass → ask Gemini whether the tool is needed
     if not state.tool_called:
+        # Step 1 (free, no LLM): is a known drug named in the question?
+        local = local_route(user_message)
+        if local == "tool":
+            return {"fda_evidence": "TOOL_NEEDED", "tool_called": False}
+        if local == "none":
+            # Not a medication question: answer with a fixed scope message. Zero model calls,
+            # and nothing the user typed can steer a model here.
+            return {"final_response": SCOPE_REPLY, "risk_level": "LOW"}
+        if local == "ask_llm" and ROUTER_MODE != "llm":
+            # Looks clinical but names no known drug. Search with the raw question.
+            # If nothing relevant is found the user gets the "no data" reply, still 0 calls.
+            return {"fda_evidence": "TOOL_NEEDED", "tool_called": False}
+
         func_call = None
-        try:
-            routing_response = call_gemini_with_retry(
-                model="gemini-2.5-flash",
-                contents=user_message,
-                config=types.GenerateContentConfig(
-                    tools=[fda_tool],
-                    system_instruction=(
-                        "You are the routing layer for a pharmacist assistant. "
-                        "Decide whether this query needs the fda_lookup tool. "
-                        "Call it only for questions about a specific "
-                        "medication's interactions, dosage, contraindications, "
-                        "or side effects — including paraphrased ones like "
-                        "'can I take this with alcohol' or 'is it safe during "
-                        "pregnancy'. Do not call it for unrelated questions."
+        # Step 2: only ask the LLM router when the question LOOKS clinical but names
+        # no known drug (e.g. 'can I take this with alcohol'). Otherwise skip it.
+        if local == "ask_llm":
+            try:
+                routing_response = call_gemini_with_retry(
+                    model=ROUTING_MODEL,
+                    contents=user_message,
+                    config=types.GenerateContentConfig(
+                        tools=[fda_tool],
+                        system_instruction=(
+                            "You are the routing layer for a pharmacist assistant. "
+                            "Decide whether this query needs the fda_lookup tool. "
+                            "Call it only for questions about a specific "
+                            "medication's interactions, dosage, contraindications, "
+                            "or side effects — including paraphrased ones like "
+                            "'can I take this with alcohol' or 'is it safe during "
+                            "pregnancy'. Do not call it for unrelated questions."
+                        ),
                     ),
-                ),
-            )
-            parts = routing_response.candidates[0].content.parts or []
-            func_call = next((p.function_call for p in parts if p.function_call), None)
-        except Exception as e:
-            sys_logger.error(f"Routing call failed: {str(e)}")
-            # Fail-safe: if the routing call itself errors, fall back to the
-            # old keyword check rather than silently skipping the FDA tool
-            # on every request.
-            lower_query = user_message.lower()
-            drug_keywords = TARGET_DRUGS + [
-                "drug", "medication", "medicine", "dose",
-                "interaction", "side effect", "contraindication"
-            ]
-            if any(word in lower_query for word in drug_keywords):
-                return {"fda_evidence": "TOOL_NEEDED", "tool_called": False}
+                )
+                used = _usage(routing_response)
+                state.llm_calls += 1
+                state.prompt_tokens += used[0]
+                state.output_tokens += used[1]
+                parts = routing_response.candidates[0].content.parts or []
+                func_call = next((p.function_call for p in parts if p.function_call), None)
+            except Exception as e:
+                sys_logger.error(f"Routing call failed: {str(e)}")
+                # Fail-safe: if the routing call itself errors, fall back to the
+                # old keyword check rather than silently skipping the FDA tool
+                # on every request.
+                lower_query = user_message.lower()
+                drug_keywords = TARGET_DRUGS + [
+                    "drug", "medication", "medicine", "dose",
+                    "interaction", "side effect", "contraindication"
+                ]
+                if any(word in lower_query for word in drug_keywords):
+                    return {"fda_evidence": "TOOL_NEEDED", "tool_called": False}
 
         if func_call and func_call.name == "fda_lookup":
             drug_name = None
@@ -455,10 +545,18 @@ def agent_node(state: AgentState) -> Dict[str, Any]:
                 "fda_evidence": "TOOL_NEEDED",
                 "tool_called": False,
                 "extracted_drug": drug_name,
+                "llm_calls": state.llm_calls,
+                "prompt_tokens": state.prompt_tokens,
+                "output_tokens": state.output_tokens,
             }
 
     # Second pass → we already have evidence (or the tool said none)
     context = state.fda_evidence if state.fda_evidence and state.fda_evidence != "TOOL_NEEDED" else "No FDA evidence retrieved."
+
+    if state.tool_called and not state.has_usable_evidence:
+        # The answer is fixed by rule 3 anyway. Do not spend a model call (or give a
+        # prompt-injection a chance) on a question we must refuse.
+        return {"final_response": NO_DATA_REPLY, "risk_level": "LOW"}
 
     if state.tool_called:
         # Clinical query: the FDA tool ran, so give the model the retrieval
@@ -495,10 +593,14 @@ This is not a drug-related question. Respond normally per rule 0, then end with 
     llm_failed = False
     try:
         response = call_gemini_with_retry(
-            model="gemini-2.5-flash",
+            model=GENERATION_MODEL,
             contents=prompt
         )
         raw = response.text.strip()
+        used = _usage(response)
+        state.llm_calls += 1
+        state.prompt_tokens += used[0]
+        state.output_tokens += used[1]
     except Exception as e:
         llm_failed = True
         sys_logger.critical(f"Gemini error: {str(e)}")
@@ -528,7 +630,10 @@ This is not a drug-related question. Respond normally per rule 0, then end with 
 
     return {
         "final_response": clean,
-        "risk_level": risk
+        "risk_level": risk,
+        "llm_calls": state.llm_calls,
+        "prompt_tokens": state.prompt_tokens,
+        "output_tokens": state.output_tokens,
     }
 
 
@@ -611,5 +716,8 @@ def agent_chat(payload: AgentChatRequest):
         "tool_called": output.get("tool_called", False),
         "risk_level": output.get("risk_level", "LOW"),
         "retrieval_distance": output.get("retrieval_distance"),
+        "llm_calls": output.get("llm_calls", 0),
+        "prompt_tokens": output.get("prompt_tokens", 0),
+        "output_tokens": output.get("output_tokens", 0),
         "latency_ms": round((time.time() - request_start) * 1000)
     }
