@@ -30,7 +30,7 @@ def test_select_evidence_single_drug_keeps_best_chunks_in_order():
 
 class _FakeCollection:
     """Returns 5 chunks that name the drug in the query."""
-    def query(self, query_texts, n_results, include):
+    def query(self, query_texts, n_results, include, where=None):
         import re
         drug = re.search(r"Drug: (\w+)", query_texts[0]).group(1).upper()
         return {"documents": [[f"{drug}-DOC-{i}" for i in range(5)]],

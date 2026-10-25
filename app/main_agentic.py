@@ -212,6 +212,11 @@ def select_evidence(usable: list, max_chunks: int = MAX_EVIDENCE_CHUNKS) -> list
 
 
 INTENT_SECTIONS = [
+    (["pregnan", "breast", "nursing", "lactation"], ["Pregnancy", "Boxed Warning", "Warnings"]),
+    (["stop using", "stop taking", "stop use", "discontinue", "suddenly", "abrupt"],
+     ["Stop Use", "Boxed Warning", "Warnings"]),
+    (["used for", "indicated", "indication", "treat"], ["Indications", "Purpose"]),
+    (["boxed"], ["Boxed Warning"]),
     (["interaction", "interact", "together", "combine", "mix", "with "], ["Interactions"]),
     (["contraindication", "contraindications", "should not", "cannot", "avoid"], ["Contraindications"]),
     (["side effect", "side effects", "adverse", "reaction", "reactions"], ["Side Effects"]),
@@ -227,6 +232,41 @@ def _intent_sections(lower_query: str) -> List[str]:
         if any(w in lower_query for w in words):
             found += [l for l in labels if l not in found]
     return found
+
+
+CANDIDATES = 24   # retrieve wide, then the reranker narrows to MAX_EVIDENCE_CHUNKS
+
+# Words that are NOT a drug name. Used to find the drug term in a vague question:
+# if no remaining word appears in any chunk's drug name, there is nothing to answer from.
+NON_DRUG_WORDS = set("""what whats which this that these those with from have has having does doing about
+safe safely take taking took should would could can will when where how much many best good better worse
+tell please give need want know there their them they your mine into onto over under than then also just
+dose doses dosage dosing side effect effects adverse reaction reactions drug drugs medication medications medicine
+medicines pill pills tablet tablets capsule capsules painkiller painkillers antibiotic antibiotics thinner blood
+heart alcohol interaction interactions interact together combine mixing warning warnings contraindication
+contraindications pregnancy overdose used using treat treatment""".split())
+
+
+def _drug_terms(lower_query: str) -> List[str]:
+    """Words in the question that could be a drug name."""
+    tokens = re.findall(r"[a-z][a-z\-]{3,}", lower_query)
+    return [t for t in tokens if t not in NON_DRUG_WORDS]
+
+
+def _chunk_drug_name(doc: str) -> str:
+    """The drug part of a chunk: 'Drug: WARFARIN (Coumadin) | Section: ...' -> 'warfarin (coumadin)'."""
+    return doc.split(" | Section:")[0].lower()
+
+
+def _search(text: str, sections: List[str], n: int = CANDIDATES) -> dict:
+    """Vector search. When the question is about specific label sections, search only those
+    sections first; if that finds too little (for example the label lacks the section), search all."""
+    if sections:
+        res = collection.query(query_texts=[text], n_results=n, include=["documents", "distances"],
+                               where={"section": {"$in": [sec.lower() for sec in sections]}})
+        if len(res.get("documents", [[]])[0]) >= 3:
+            return res
+    return collection.query(query_texts=[text], n_results=n, include=["documents", "distances"])
 
 
 def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict[str, Any]:
@@ -272,13 +312,15 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
                 embed_query = (f"Drug: {drug} | Section: {', '.join(sections)}"
                                if sections else f"Drug: {drug}")
                 drug_query = f"{query} ({drug})"      # reranker sees the real question
-                db_results = collection.query(
-                    query_texts=[embed_query],
-                    n_results=8,
-                    include=["documents", "distances"]
-                )
+                db_results = _search(embed_query, sections)
                 documents = db_results.get("documents", [[]])[0]
                 distances = db_results.get("distances", [[]])[0]
+
+                # Keep only chunks that are really about this drug (a section filter must
+                # never let another drug's chunk through).
+                kept = [(d, x) for d, x in zip(documents, distances) if drug in _chunk_drug_name(d)]
+                documents = [d for d, _ in kept]
+                distances = [x for _, x in kept]
 
                 if not documents:
                     continue
@@ -292,14 +334,18 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
                     if dist < SIMILARITY_THRESHOLD:
                         usable.append((score, doc, dist, drug))
         else:
+            # No known drug named. The question must still name SOME drug that exists in the
+            # database ("side effects of carvedilol"). Vague questions ("is this painkiller safe
+            # with alcohol?") and made-up names ("zorbaflex") name none, so nothing is usable.
             search_query = f"{query} {intent_string}".strip()
-            db_results = collection.query(
-                query_texts=[search_query],
-                n_results=8,
-                include=["documents", "distances"]
-            )
-            documents = db_results.get("documents", [[]])[0]
-            distances = db_results.get("distances", [[]])[0]
+            terms = _drug_terms(lower_query)
+            db_results = _search(search_query, _intent_sections(lower_query)) if terms else {}
+            documents = db_results.get("documents", [[]])[0] if terms else []
+            distances = db_results.get("distances", [[]])[0] if terms else []
+            kept = [(d, x) for d, x in zip(documents, distances)
+                    if any(t in _chunk_drug_name(d) for t in terms)]
+            documents = [d for d, _ in kept]
+            distances = [x for _, x in kept]
 
             if documents:
                 pairs = [[search_query, doc] for doc in documents]

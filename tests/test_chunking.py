@@ -97,12 +97,13 @@ def test_search_text_names_the_section_the_user_asks_about(monkeypatch):
     seen = []
 
     class Capture:
-        def query(self, query_texts, n_results, include):
+        def query(self, query_texts, n_results, include, where=None):
             seen.append(query_texts[0])
             return {"documents": [[]], "distances": [[]]}
 
     monkeypatch.setattr(main_agentic, "collection", Capture())
     main_agentic.check_fda_database("What does FDA say about warfarin dosing?")
     main_agentic.check_fda_database("What warnings are associated with warfarin?")
-    assert "Drug: warfarin | Section: Dosage" in seen[0]
-    assert "Warnings" in seen[1]
+    # (each check searches twice here: section-filtered, then all sections, because the fake is empty)
+    assert any("Drug: warfarin | Section: Dosage" in q for q in seen)
+    assert any("Warnings" in q for q in seen)
