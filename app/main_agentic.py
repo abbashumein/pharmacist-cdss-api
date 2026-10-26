@@ -227,6 +227,9 @@ INTENT_SECTIONS = [
 
 def _intent_sections(lower_query: str) -> List[str]:
     """Section names (as stored in chunk headers) the question is about."""
+    import re
+    # injected text after "SYSTEM:" must not steer intent
+    lower_query = re.split(r"\bsystem\s*:", lower_query)[0]
     found: List[str] = []
     for words, labels in INTENT_SECTIONS:
         if any(w in lower_query for w in words):
