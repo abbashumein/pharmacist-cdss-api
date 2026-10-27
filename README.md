@@ -314,6 +314,7 @@ README.md
 
 ---
 ## 🔄 Knowledge Ingestion Pipeline
+
 ```text
 openFDA API (830 FDA drug labels)
 │
@@ -423,11 +424,9 @@ RAG or Agentic Retrieval Layer
 
 
 
-### V2 — additional robustness testing (Sept 2026)
+### V2 — additional robustness testing
 
-A harder eval set (`eval_v2_hard.py`, 18 queries) was added to test
-paraphrased and indirectly-referenced queries, beyond the original
-direct-name test set:
+A harder eval set (`eval_v2_hard.py`, 18 queries) was added to test paraphrased and indirectly-referenced queries, beyond the original direct-name test set:
 
 | Category | Result |
 |---|---|
@@ -442,46 +441,93 @@ against the raw query text instead of the resolved drug name, discarding correct
 (executed in slices to stay within).
 
 
-## V3 Agentic Key Findings
+## V3 Agentic Key Findings (updated Oct 2026)
 
-- Gemini function-calling routes 19/20 queries correctly (95%) — tool called for
-  clinical queries, correctly refused for all out-of-scope queries. The one
-  deviation was an ambiguous query with no drug named ("is this medication safe
-  to combine with painkiller"), where the agent declined the tool call and still
-  produced a grounded, appropriately cautious response rather than guessing.
-- 16/20 responses (80%) grounded in retrieved FDA evidence. Measured after
-  replacing keyword-based routing with real Gemini function-calling; earlier
-  figures reflected the deterministic router and no longer apply.
-- Warfarin + ibuprofen interaction confirmed post-fix: distance 0.613, correctly
-  identifies bleeding-risk mechanism and recommends INR monitoring.
-- Guardrail correctly declines to speculate on metformin + lisinopril interaction —
-  both drugs present in corpus individually, but no chunk explicitly documents an
-  interaction between them, and the system refuses to infer one from co-occurrence
-  alone (Rule 4).
+V3 is a controlled agent: safety-critical steps are deterministic (local scope routing, drug-name guard, fixed refusals), and Gemini is used for one thing,writing the answer from retrieved evidence (max 1 call per question). `ROUTER_MODE=local` is the default; `ROUTER_MODE=llm` restores the earlier Gemini-routed version.
 
-  
+**Index:** 830 openFDA label records, split into 11,898 section chunks (~900 characters, 150 overlap; each chunk carries drug and section). Distance metric is L2.
+
+**Evaluation:** 50 questions in 7 categories (easy 14, hard 10, ambiguous 4, out-of-scope 6, made-up drugs 5, real drugs not in the database 5, prompt injection 6). All 50 ran end to end.
+
+| Metric | Result |
+|---|---|
+| Retrieval OK (38 scored questions) | 100% |
+| Correct (rule-based fact check) | 100% |
+| Faithfulness, Gemini judge (31 answered questions) | 0.984 |
+| Correctness, Gemini judge (31 answered questions) | 1.0 |
+| Gemini calls per question | 0.68 average, 1 max |
+| Latency (answered questions) | p50 8.6 s, p95 14.3 s |
+| Tokens per answered question | ~1,900 prompt, ~190 output |
+
+Retrieval progression on the same questions: 81.6% (old chunks) → 73.7%
+(after rebuild, junk matches on the larger index) → 100% (after
+drug-name guard, reranking, and section filtering).
+
+**Bugs found by the eval and fixed (each has a regression test):**
+- Duplicate chunks from repeated manufacturer text wasted evidence slots.
+- Interaction searches did not include the partner drug.
+- A missing routing keyword sent "Is tramadol addictive?" to out-of-scope.
+- Injected text after "SYSTEM:" steered intent detection to the wrong
+  section; intent is now detected on the clean question only.
+- The Gemini judge was seeing only half the evidence (3,500 characters),
+  which gave a false faithfulness score of 0.79. After the fix: 0.984.
+
+**Guardrails:**
+- Out-of-scope questions get a fixed scope reply with an emergency line (0 calls).
+- No usable evidence gives a fixed "I don't have sufficient FDA data" reply (0 calls).
+- A question must name a drug present in a chunk's drug name, and a named drug never receives another drug's chunks.
+- The system does not infer an interaction because two drug names appear together (e.g. metformin + lisinopril: both are in the corpus, but no chunk documents an interaction, so it declines). This was observed in an earlier version and is not one of the 50 eval questions.
+
+**Known limitations:**
+- The system was tuned on this eval set, so the numbers are not a held-out measurement. A fresh held-out set is planned.
+- The judge is Gemini grading Gemini, on a small sample (31 answers).
+- One answer (#3, warfarin boxed warning) was judged partial: the bleeding-risk statement is not word-for-word in the retrieved text.
+- Combination-product labels (e.g. amoxicillin/clavulanate) can still appear as evidence for a single-drug question.
+- Routing keyword lists are hand-written, so a medical word missing from them can be treated as out of scope.
+- Earlier figures (95% routing, 80% grounded, based on Gemini function-calling and a weaker metric) no longer apply.
+
 
 ## How grounded is measured
-`evaluation/evaluate_agent.py` marks a drug question "grounded" only if: the FDA tool ran and found usable
-evidence, the answer names the expected drug, and the answer is not a refusal or an error fallback. Refusals
-are counted separately. It does **not** check that every claim in the answer appears in the retrieved text
-(claim-level check), so "grounded" here means "answered from retrieved evidence about the right drug", not
-"every sentence verified". The test cases are in `evaluation/test_cases.json`.
+`evaluation/run_eval.py` runs a 50-question set (`evaluation/eval_set.json`) in 7 categories: easy, hard, ambiguous, out-of-scope, made-up drugs, real drugs possibly not in the database, and prompt injection.
+
+Every question is scored on four things:
+
+* **Retrieval:** the expected drug, section and fact terms must appear in the retrieved chunks.
+* **Faithfulness:** a free lexical check (drug names, doses and terms in the answer must appear in the
+  evidence), plus an optional Gemini judge (`--judge`) that reads the **full** evidence and rates each
+  answer yes / partial / no.
+* **Correctness:** expected facts or expected behaviour (answer, refuse, or resist the injection).
+* **Cost:** Gemini calls, tokens and latency per question.
+
+Errors and quota failures are marked INVALID, never pass or fail. The judge scores only answers the model actually generated. Fixed refusals and out-of-scope replies (0 calls) are not judged.
+
+The lexical check only looks at words. It cannot catch a subtly wrong claim, which is why the Gemini judge exists. Neither is a human clinical review.
 
 ## Known Limitations
-* Only 12 drugs get per-drug retrieval (`TARGET_DRUGS`), although the DB holds 834 labels. For other drugs the
-  query falls back to a generic search, and the routing tool tells Gemini to map described drugs onto the 12.
-  A wrong mapping for a drug outside the list is a real risk for a clinical tool.
-* "Grounded" is a drug-name + evidence check, not a claim-level fact check (see above).
+* Retrieval covers all 830 indexed FDA label records (11,898 section chunks), not a fixed list of 12 drugs. A question must name a drug that appears in a chunk's drug name, and a named drug never receives another drug's chunks. This guard matches on name, so a combination product (e.g. amoxicillin/clavulanate) can
+  still leak into a single-drug question. Planned fix: match the whole drug name.
+* "Grounded" is checked by a lexical check plus a Gemini judge on 31 answered questions. The judge is
+  Gemini judging Gemini, and the sample is small, so treat the scores as a strong signal, not proof.
+  One answer (#3) was rated "partial" because a true bleeding-risk statement was not word-for-word in the
+  boxed-warning text.
+* The eval set was used to find and fix bugs, so its scores are not a held-out result. A fresh held-out
+  set is planned.
 * Sessions use in-memory `MemorySaver`: history is lost on restart and not shared across instances.
-* Corpus coverage is per-drug, not per-pair — an interaction can go undocumented even when
+* Corpus coverage is per-drug, not per-pair. An interaction can go undocumented even when
   both drugs are individually well-represented, and the system correctly refuses to guess
-  rather than hallucinate
-* Gemini free tier limits evaluation to 20 requests/day; a quota-aware retry wrapper (waits on the server's suggested retryDelay) reduces transient 429 failure      but cannot fix full daily exhaustion — large eval batches
-  still require splitting across days
-* ChromaDB collection handles can go stale after an external rebuild, requiring a server restart to re-resolve (see Engineering Challenges)
-* V3 tool-routing is 95% (19/20), not 100% — one ambiguous, no-drug-named query was routed as "no tool needed" rather than asking a clarifying question; the agent   still gave a safe response, but a clarification step would be more correct than silent judgment calls
-
+  rather than hallucinate.
+* Gemini free tier limits evaluation to 20 requests/day. The eval is resumable and stops at a daily call
+  cap (default 18), so a full run with the judge can take more than one day.
+* ChromaDB collection handles can go stale after an external rebuild, requiring a server restart to re-resolve (see Engineering Challenges).
+* V3 routing is local and rule-based by default (keyword lists for scope and for the label sections a
+  question needs), at most 1 Gemini call per question (0.68 on average). The old LLM router is still
+  available with `ROUTER_MODE=llm`. The earlier 95% (19/20) tool-routing figure is superseded by the
+  50-question eval. Because the keyword lists are hand-written, a medical word missing from them can be
+  wrongly treated as out of scope (this happened with "addictive" before it was added).
+* V3 is a controlled agent: deterministic safety routing plus LLM answer generation. It has no open-ended
+  agent loop and does not retry when evidence is weak.
+* Not load-tested. Latency is p50 7.2 s / p95 14.3 s for a single user, and the free Gemini quota
+  would not support many concurrent users.
 
 
 
