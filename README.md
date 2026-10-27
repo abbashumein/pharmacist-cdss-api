@@ -4,7 +4,7 @@ A Clinical Decision Support System that assists pharmacists and healthcare profe
 
 The system exists in two versions:
 
-- **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage → retrieval → generation) over 834 real FDA drug labels. Per-drug retrieval with local all-     MiniLM-L6-v2 embeddings, 0.95 cosine similarity threshold, CrossEncoder reranking, and an LLM-based resolver that maps category references ("blood thinner",       "cholesterol pill") to a drug name before retrieval. The LLM picks from a fixed list of 12 supported drugs (see Known Limitations), so it is not open-vocabulary.
+- **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage → retrieval → generation) over 830 real FDA drug labels. Per-drug retrieval with local all-     MiniLM-L6-v2 embeddings, 0.95 cosine similarity threshold, CrossEncoder reranking, and an LLM-based resolver that maps category references ("blood thinner",       "cholesterol pill") to a drug name before retrieval. The LLM picks from a fixed list of 12 supported drugs (see Known Limitations), so it is not open-vocabulary.
 
 - **V3 (Agentic RAG)** — LangGraph agent using real Gemini function-calling for tool routing: the model itself decides, per query, whether the
   fda_lookup tool is needed, rather than following a fixed pipeline shape
@@ -36,7 +36,7 @@ emotion detection, and full audit logging.
 
 ### Retrieval-Augmented Generation (RAG) — V2
 * Local all-MiniLM-L6-v2 embeddings — free, unlimited, no API quota
-* ChromaDB vector database with 834 FDA drug labels
+* ChromaDB vector database with 830 FDA drug labels
 * CrossEncoder reranking (ms-marco-MiniLM-L-6-v2) for precision
 * Query rewriting — extracts drug names + clinical intent keywords
 * Cosine similarity threshold — rejects irrelevant chunks
@@ -127,7 +127,7 @@ The system exists in two production-ready versions. All components are built, ev
 * Telemetry Node — JSON parsing with regex fallback, risk level, confidence, emotion
 
 **Retrieval-Augmented Generation**
-* ChromaDB vector storage (834 FDA drug labels)
+* ChromaDB vector storage (830 FDA drug labels)
 * Local all-MiniLM-L6-v2 embeddings — free, unlimited
 * CrossEncoder reranking — ms-marco-MiniLM-L-6-v2
 * Cosine similarity threshold (0.95) — rejects irrelevant chunks
@@ -189,7 +189,7 @@ Triage Node
         │
         ▼
 ChromaDB Vector Search
-(806 FDA Records + Local Embeddings + Cosine Threshold)
+(830 FDA Records + Local Embeddings + Cosine Threshold)
         │
         ▼
 CrossEncoder Reranking
@@ -299,7 +299,7 @@ README.md
 ---
 ## 🔄 Knowledge Ingestion Pipeline
 ```text
-openFDA API (806 FDA drug labels)
+openFDA API (830 FDA drug labels)
 │
 ▼
 Auto-ingest on Startup (BackgroundTasks)
@@ -359,7 +359,7 @@ RAG or Agentic Retrieval Layer
 | Cloud Platform | Azure Container Apps (was live; free tier ended) |
 | Container Registry | Azure Container Registry |
 | CI/CD | GitHub Actions |
-| Data Source | openFDA API (834 FDA drug labels) |
+| Data Source | openFDA API (830 FDA drug labels) |
 | Frontend | HTML + CSS + JavaScript |
 | Evaluation | Custom eval framework (retrieval + agent grounding metrics) |
 
@@ -393,19 +393,17 @@ RAG or Agentic Retrieval Layer
 
 | Metric | V1 (Baseline) | V2 (RAG Pipeline) | V3 (Agentic) |
 |---|---|---|---|
-| Direct Lookup Accuracy | 80% (4/5) | 100% (7/7) | 100% |
-| Drug Interaction Accuracy | 100% (4/4) | 83% (5/6) | 80% (4/5) |
-| Contraindication Accuracy | 100% (4/4) | 100% (6/6) | 100% (3/3) |
-| Out-of-Scope Rejection | Not tested | 100% (3/3) | 100% (4/4) |
-| Records in ChromaDB | 19 FDA labels | 444 FDA labels | 834 FDA labels |
-| Embedding Model | Gemini cloud API | Local all-MiniLM-L6-v2 | Local all-MiniLM-L6-v2 |
-| Reranker | None | CrossEncoder | CrossEncoder |
-| Similarity Threshold | None | 0.95 cosine distance | 0.95 cosine distance |
-| Eval Test Cases | 10 queries | 24 queries | 20 queries |
-| p95 Latency | ~16s (cold start) | ~5-8s (local) | ~5-10s (local) |
-| Cost per Request | ~$0.0008 | ~$0.0004 | ~$0.0004 |
-| Tool Routing Accuracy | N/A | N/A | 95% (19/20) |
-| Grounded Responses | N/A | N/A | 80% (16/20) |
+| Direct Lookup Accuracy | 80% (4/5) | 100% (7/7) | 100% (14/14) |
+| Drug Interaction / Hard Questions | 100% (4/4) | 83% (5/6) | 100% (10/10) |
+| Out-of-Scope Rejection | Not tested | 100% (3/3) | 100% (6/6) |
+| Records in ChromaDB | 19 FDA labels | 444 FDA labels | 830 FDA labels (11,898 section chunks) |
+| Similarity Threshold | None | 0.95 L2 distance | Drug-name guard + rerank to top 8 (distance cutoff replaced) |
+| Eval Test Cases | 10 queries | 24 queries | 50 queries (7 categories) |
+| p95 Latency | ~16s (cold start) | ~5-8s (local) | 14.3s (p50 8.6s, includes Gemini call) |
+| Cost per Request | ~$0.0008 | ~$0.0004 | 0.68 Gemini calls (max 1), ~1,900 prompt + ~190 output tokens |
+| Retrieval Accuracy | N/A | N/A | 100% |
+| Correctness (judge) | N/A | N/A | 1.0 (Gemini judge, 31 answers) |
+| Faithfulness (judge) | N/A | N/A | 0.984 (Gemini judge, 31 answers) |
 
 
 
@@ -485,18 +483,24 @@ are counted separately. It does **not** check that every claim in the answer app
 | Ingested drugs didn't match tested drugs | openFDA ingestion pulled a random top-50 batch with no guarantee target drugs (warfarin, aspirin, etc.) were included | Added explicit per-drug openFDA fetch before the general batch, guaranteeing core test drugs are always in the corpus |
 | Corrupted API key at runtime | Manual shell `export` left a stale, multi-line-corrupted value in the terminal session; `load_dotenv()` doesn't override existing env vars by default | Switched to `load_dotenv(override=True)` so `.env` always takes priority over stray shell state |
 | Windows local dev blocked by native build | `chroma-hnswlib==0.7.3` (via `chromadb==0.5.3`) has no prebuilt Windows wheel for Python 3.12, requires MSVC compiler | Upgraded to `chromadb==0.5.4` (prebuilt wheel available), decoupled `langchain-chroma` install with `--no-deps` to resolve a metadata-only version conflict |
-| Out-of-scope queries returning irrelevant chunks | No similarity threshold — ChromaDB always returned nearest neighbor even for unrelated queries | Added cosine distance threshold (0.8) in triage node — rejects chunks above threshold, returns 'No relevant FDA evidence found' |
-| Gemini daily quota exhausted during eval | Free tier allows only 20 generation requests/day — eval script sent all queries too fast | Added `time.sleep(20)` between eval requests to stay within rate limits |
 | ChromaDB collection handle goes stale after rebuild | `get_or_create_collection()` resolves a collection by internal UUID at server startup; if the DB is rebuilt afterward (e.g. via `main_demo.py`'s ingest), that UUID no longer exists — confirmed via `Collection [uuid] does not exist` error in logs | Restart the agentic server after any DB rebuild so it re-resolves a fresh collection handle; documented as a required step in deployment/ops notes |
 | Gemini returning JSON wrapped in markdown backticks | Gemini occasionally wraps JSON in ` ```json ``` ` despite prompt instructions | Added `except Exception` catch in telemetry node — falls back to regex parsing when JSON parsing fails |
 | Local embedding quota hit during large ingest | Gemini free tier embedding API has 1000 requests/day limit — 200+ records exhausted it | Switched to local `all-MiniLM-L6-v2` sentence-transformers model — free, unlimited, no API calls |
 | Pydantic validation crash on null warnings field | `warnings: str = None` not valid in Pydantic v2 — `None` is not a string | Changed to `warnings: Optional[str] = None` with proper `Optional` typing |
-| V3 routing decision not actually LLM-driven | Original "agentic" routing was a keyword/drug-name substring match, not Gemini reasoning — despite being described as agent-driven | Replaced with real Gemini function-calling (`fda_tool` schema); Gemini itself decides whether to call the FDA tool, with a deterministic fallback only if the routing call errors |
 | Indirect drug references ("blood thinner") silently dropped when another drug was already named | Resolver only ran when zero drugs were found via substring match — multi-drug queries with one named + one described drug skipped resolution entirely | Removed the gating condition; resolver now runs on every clinical query regardless of what substring matching already found, and appends any newly-resolved drug |
 | Correctly-resolved indirect drug still missing from final answer | CrossEncoder reranked candidate chunks against the raw user query text, which never contained the resolved drug name (e.g. "blood pressure medicine" never lexically matches "lisinopril") — so retrieved lisinopril chunks lost the rerank despite being fetched correctly | Reranking query now includes resolved drug names, e.g. `"{user_msg} (lisinopril)"`, so resolved-but-unnamed drugs get proper credit during reranking |
-| Eval script reported false-positive hits on quota failures | `eval_v2_hard.py` checked the entire response JSON dump for the expected term, including `evidence_sources` — which always contains the drug name from retrieval even when generation itself failed and returned a fallback error message | Rewrote scoring to check only the parsed `answer`/`warnings` fields, and explicitly fail if the response is the "temporarily unable to respond" fallback |
 | Single 429 failure corrupted entire eval batches | Gemini calls failed immediately on rate-limit errors with no retry, so one quota hit mid-batch reported false negatives across the rest of the run | Added `call_gemini_with_retry()` — parses Gemini's own suggested `retryDelay` from the error and retries up to 2 times before failing; eval script timeout increased from 30s to 180s to accommodate |
-| Gemini daily quota exhausted during eval | Free tier allows only 20 generation requests/day; V3's agentic loop uses 2 calls/query (routing + generation), V2's resolver adds a 2nd call for ambiguous queries | Added `time.sleep(20)` between requests, plus quota-aware retry logic; large eval batches split across multiple days/slices to stay within budget |
+| Eval reported false 100% accuracy | Hit detection checked only the HTTP status, never whether the right drug was retrieved | Rewrote scoring to check drug, section and fact terms per question. Now 50 questions in 7 categories; errors and quota failures are INVALID, never pass or fail |
+| Session state leak | A second turn reused the first turn's evidence | Per-request state, plus a regression test |
+| Endpoints blocked the server | Async endpoints ran blocking retrieval and LLM code | Switched to plain `def` so FastAPI runs them in a threadpool |
+| Warfarin's aspirin warning was cut off | Whole-section text was truncated before embedding | Section chunking (900 chars, 150 overlap, each chunk prefixed with drug and section). 828 to 11,898 chunks (830 label records) |
+| Junk matches after the DB grew 10x | The fixed L2 distance cutoff (0.95) stopped filtering at the larger size | Drug-name guard: the question must name a drug in the chunk's drug name, and a named drug never gets another drug's chunks |
+| Duplicate chunks wasted evidence slots (#13) | Manufacturers repeat identical label text | Near-duplicate removal after reranking |
+| Interaction answers missed the partner drug (#16, #17) | Search used only the first drug | Interaction search now includes the partner drug's name |
+| "Is tramadol addictive?" got the out-of-scope reply (#42) | Routing keyword list had no "addictive" or "withdrawal" | Extended the keywords, added a routing test |
+| Prompt injection steered retrieval (#47) | Injected "any dose" text triggered the Dosage intent, so the model answered from its own knowledge | Intent detection ignores everything after "SYSTEM:", plus a regression test |
+| LLM judge scored 0.79 faithfulness | The judge saw only the first 3,500 characters of evidence | Raised to 9,000 characters and re-judged: faithfulness 0.984, correctness 1.0 (31 answers; Gemini judges Gemini) |
+| Too many Gemini calls on a 20/day quota | Old design used 2 calls per question (LLM router plus answer) | Local routing and a fixed refusal when evidence is missing. 0.68 calls per question, max 1. Eval is resumable with an 18-call daily cap. `ROUTER_MODE=llm` kept as an option |
 
 
 ### 🔬 Research & Development
