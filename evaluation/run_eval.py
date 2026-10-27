@@ -416,7 +416,7 @@ def run_judge(max_calls: int):
             break
         batch = todo[k:k + 8]
         items = [{"id": i, "question": cases[i]["query"], "expected_facts_any_of": cases[i]["facts"],
-                  "evidence": " ".join(records[i]["chunks"])[:3500], "answer": records[i]["response"]}
+                  "evidence": " ".join(records[i]["chunks"])[:9000], "answer": records[i]["response"]}
                  for i in batch]
         prompt = ("You are a strict grader for a pharmacist assistant. For EACH item decide:\n"
                   "faithful: yes / partial / no  - is every clinical claim in the answer supported by the evidence text?\n"

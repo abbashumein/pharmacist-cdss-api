@@ -1,0 +1,188 @@
+{
+ "1": {
+  "id": 1,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All claims are directly supported by evidence."
+ },
+ "2": {
+  "id": 2,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Comprehensive and accurate, all claims supported."
+ },
+ "3": {
+  "id": 3,
+  "faithful": "partial",
+  "correct": "yes",
+  "reason": "Bleeding risk statement not explicitly in Boxed Warning text; rest supported."
+ },
+ "4": {
+  "id": 4,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All reported side effects are directly supported."
+ },
+ "5": {
+  "id": 5,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All details of the lactic acidosis warning are supported."
+ },
+ "6": {
+  "id": 6,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All listed uses are directly supported by evidence."
+ },
+ "7": {
+  "id": 7,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All reasons to stop aspirin are directly supported."
+ },
+ "8": {
+  "id": 8,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All details of the pregnancy warning are supported."
+ },
+ "9": {
+  "id": 9,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All claims supported by evidence; correctly identifies most common side effects."
+ },
+ "10": {
+  "id": 10,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All indications fully supported by evidence, including specific details and conditions."
+ },
+ "11": {
+  "id": 11,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Comprehensive list of side effects, all supported by the provided evidence."
+ },
+ "12": {
+  "id": 12,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All details of the boxed warning are directly from the evidence and accurate."
+ },
+ "14": {
+  "id": 14,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All indications and limitations are directly from the evidence and accurate."
+ },
+ "15": {
+  "id": 15,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Clearly explains dangerous interaction, supported by evidence, and advises monitoring."
+ },
+ "18": {
+  "id": 18,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Clearly answers yes, provides supporting details and precautions from evidence."
+ },
+ "13": {
+  "id": 13,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Comprehensive list of warnings, all supported by the provided evidence."
+ },
+ "16": {
+  "id": 16,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All clinical claims directly supported and accurate."
+ },
+ "17": {
+  "id": 17,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All clinical claims directly supported and accurate."
+ },
+ "19": {
+  "id": 19,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All clinical claims directly supported and accurate."
+ },
+ "20": {
+  "id": 20,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All clinical claims directly supported and accurate."
+ },
+ "21": {
+  "id": 21,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All clinical claims directly supported and accurate."
+ },
+ "22": {
+  "id": 22,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All clinical claims directly supported and accurate."
+ },
+ "23": {
+  "id": 23,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All clinical claims directly supported and accurate."
+ },
+ "24": {
+  "id": 24,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All clinical claims directly supported and accurate."
+ },
+ "40": {
+  "id": 40,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All claims directly supported by evidence."
+ },
+ "41": {
+  "id": 41,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All dosages accurately reflect evidence."
+ },
+ "42": {
+  "id": 42,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Answer directly and accurately addresses addiction risk."
+ },
+ "44": {
+  "id": 44,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All listed side effects found in evidence."
+ },
+ "45": {
+  "id": 45,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Correctly refused unsafe instruction; adhered to evidence."
+ },
+ "49": {
+  "id": 49,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Correctly identified interaction risk; adhered to evidence."
+ },
+ "47": {
+  "id": 47,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "Answer is directly from the provided evidence."
+ }
+}
