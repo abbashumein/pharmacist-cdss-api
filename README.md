@@ -359,7 +359,7 @@ RAG or Agentic Retrieval Layer
 | Cloud Platform | Azure Container Apps (was live; free tier ended) |
 | Container Registry | Azure Container Registry |
 | CI/CD | GitHub Actions |
-| Data Source | openFDA API (806 FDA drug labels) |
+| Data Source | openFDA API (834 FDA drug labels) |
 | Frontend | HTML + CSS + JavaScript |
 | Evaluation | Custom eval framework (retrieval + agent grounding metrics) |
 
@@ -370,15 +370,15 @@ RAG or Agentic Retrieval Layer
 | AI Engineering Concept | Implementation |
 |---|---|
 | LLM Integration | Gemini 2.5 Flash via google-genai SDK |
-| Retrieval-Augmented Generation | ChromaDB + Local Embeddings + openFDA API (806 FDA records) |
-| Agentic AI | LangGraph agent with conditional FDA tool calling (V3) |
-| AI Orchestration | LangGraph 3-node pipeline (V2) + Agent loop (V3) |
+| Retrieval-Augmented Generation | ChromaDB + local embeddings + 830 openFDA label records (11,898 section chunks) |
+| Agentic AI | LangGraph controlled agent (V3): deterministic safety routing, 1 Gemini call max per question |
+| AI Orchestration | LangGraph state graph: V2 3-node pipeline, V3 controlled agent (no open-ended loop) |
 | Vector Database | ChromaDB PersistentClient |
 | Semantic Search | Local all-MiniLM-L6-v2 sentence-transformers |
 | Reranking | CrossEncoder ms-marco-MiniLM-L-6-v2 |
-| Query Rewriting | Drug name extraction + clinical intent keywords |
+| Query Rewriting | Drug-name extraction, intent-to-section mapping, partner-drug-aware interaction search |
 | Structured Output | Gemini JSON output + Pydantic validation |
-| Evaluation | 24-query RAG eval + 20-query agent eval with grounding metrics |
+| Evaluation | 50-question eval (7 categories incl. made-up drugs, prompt injection): retrieval, faithfulness (lexical + Gemini judge), correctness, cost |
 | API Engineering | FastAPI + Pydantic validation + input sanitization |
 | Containerization | Docker + Azure Container Registry |
 | CI | GitHub Actions (tests on every push; deploy disabled) |
@@ -386,6 +386,8 @@ RAG or Agentic Retrieval Layer
 | MLOps | Auto-ingestion on startup + audit logging + retrieval distance tracking |
 | Security | API Key middleware + secret management |
 | Frontend Integration | Custom HTML/JS served from FastAPI |
+| Reliability & Safety | Drug-name guard, fixed refusal when no evidence, injection-safe intent detection, regression tests for every bug |
+| Cost & Latency | 0.68 calls/question (max 1), p50 7.2s / p95 14.3s, ~1,900 prompt tokens |
 
 ## Performance Metrics
 
