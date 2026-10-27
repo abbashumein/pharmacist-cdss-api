@@ -956,10 +956,12 @@
    "section": [
     "Indications"
    ],
-   "facts": [],
+   "facts": [
+    "anticoagulant"
+   ],
    "forbidden": [],
    "risk_not_low": false,
-   "note": "brand name"
+   "note": "brand name; gold facts added after review"
   },
   {
    "id": 54,
@@ -973,10 +975,12 @@
    "section": [
     "Side Effects"
    ],
-   "facts": [],
+   "facts": [
+    "diarrhea"
+   ],
    "forbidden": [],
    "risk_not_low": false,
-   "note": "brand name"
+   "note": "brand name; gold facts added after review"
   },
   {
    "id": 55,

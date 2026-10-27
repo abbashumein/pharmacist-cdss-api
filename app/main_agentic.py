@@ -308,6 +308,21 @@ def _search(text: str, sections: List[str], n: int = CANDIDATES) -> dict:
     return collection.query(query_texts=[text], n_results=n, include=["documents", "distances"])
 
 
+def _normalize_query(lower_query: str) -> str:
+    """Swap brand names and near-miss typos of known drugs for the generic name."""
+    import difflib
+    out = []
+    for w in re.findall(r"[a-z][a-z\-]*|\W+|\d+", lower_query):
+        if w in BRAND_TO_GENERIC:
+            w = BRAND_TO_GENERIC[w]
+        elif len(w) >= 5 and w.isalpha() and w not in NON_DRUG_WORDS and not any(w in n for n in CLEAN_DRUGS):
+            close = difflib.get_close_matches(w, CLEAN_DRUGS, n=1, cutoff=0.85)
+            if close:
+                w = close[0]
+        out.append(w)
+    return "".join(out)
+
+
 def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict[str, Any]:
     """
     Returns a structured dict the agent can reason over.
@@ -328,7 +343,7 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
     pass; the threshold + reranker below still decide what's usable.
     """
     try:
-        lower_query = query.lower()
+        lower_query = _normalize_query(query.lower())
         found_drugs = [drug for drug in TARGET_DRUGS if drug in lower_query]
 
         # If Gemini's routing call extracted a drug name (e.g. from a
