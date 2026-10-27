@@ -1,66 +1,57 @@
-# Pharmacist CDSS — Agentic RAG Clinical Decision Support System
+# Pharmacist CDSS — Controlled Agentic RAG Clinical Decision Support System
 
-A Clinical Decision Support System that assists pharmacists and healthcare professionals with drug interaction checks, medication safety assessment, and evidence-grounded clinical guidance, built as a progression from a fixed RAG pipeline to a genuine agentic RAG system.
+A Clinical Decision Support System that helps pharmacists check drug interactions, dosing, warnings and side effects, with every answer grounded in FDA drug label text. It evolved from a fixed RAG pipeline (V2) into a controlled agentic system (V3): safety-critical routing is deterministic, and the LLM only writes the final answer from retrieved evidence. When evidence is missing, it refuses with a fixed message instead of guessing.
+
+Built to be measured, not just demoed: a 50-question evaluation (including made-up drugs and prompt-injection attacks), regression tests for every bug found, and cost tracking (at most 1 LLM call per question).
 
 The system exists in two versions:
 
-- **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage → retrieval → generation) over 830 real FDA drug labels. Per-drug retrieval with local all-     MiniLM-L6-v2 embeddings, 0.95 cosine similarity threshold, CrossEncoder reranking, and an LLM-based resolver that maps category references ("blood thinner",       "cholesterol pill") to a drug name before retrieval. The LLM picks from a fixed list of 12 supported drugs (see Known Limitations), so it is not open-vocabulary.
+- **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage, retrieval, generation) over 830 openFDA drug label records, indexed as 11,898 section-level chunks (about 900 characters, 150 overlap, each tagged with drug and section). Local all-MiniLM-L6-v2 embeddings in ChromaDB (L2 distance), a drug-name guard that stops one drug's chunks answering for another, and CrossEncoder reranking (40 candidates narrowed to 8, near-duplicates removed).
 
-- **V3 (Agentic RAG)** — LangGraph agent using real Gemini function-calling for tool routing: the model itself decides, per query, whether the
-  fda_lookup tool is needed, rather than following a fixed pipeline shape
-  every time. 95% tool routing accuracy (19/20), 80% grounded responses
-  (16/20) on a 20-query eval. Includes a guardrail (Rule 4) that declines
-  to infer a drug interaction from co-occurrence alone when no FDA chunk
-  documents it explicitly, and a quota-aware retry wrapper for Gemini's
-  free-tier rate limits.
+- **V3 (Agentic RAG)** — LangGraph agent with deterministic safety routing and LLM generation. Local keyword routing (0 calls) sends out-of-scope questions to a fixed scope reply and no-evidence questions to a fixed "insufficient FDA data" refusal. Intent detection maps the question to label sections and ignores injected "SYSTEM:" text. Interaction searches include the partner drug. At most 1 Gemini call per question (0.68 on average). `ROUTER_MODE=llm` restores the old LLM router. I kept routing deterministic on purpose: predictable cost, latency and safety matter more than autonomy in a medical setting.
 
-Both versions generate structured clinical responses with risk assessment,
-emotion detection, and full audit logging.
+Both versions return structured clinical responses with a risk level and full audit logging.
+
 ---
 
-## Overview
-## Architecture (V2 / V3)
-## V3 Agentic Key Findings
-## Evidence — Live Verification        ← new section
-## Known Limitations
-## Engineering Challenges & Solutions
-## Setup / Local Dev instructions
 ## Key Features
 
 ### Clinical Decision Support
 * Drug interaction safety checks
 * Medication side effect guidance
-* Patient symptom triage with severity scoring (LOW/MODERATE/HIGH)
-* Structured clinical responses with evidence grounding
-* Out-of-scope query rejection — non-clinical queries refused automatically
+* Risk level per answer (LOW / MODERATE / HIGH); risk is capped at MODERATE when there is no evidence
+* Answers grounded only in retrieved FDA label text
+* Out-of-scope queries get a fixed reply (0 model calls), with an emergency line
+* Fixed refusal ("I don't have sufficient FDA data") when no usable evidence is found (0 model calls)
 
-### Retrieval-Augmented Generation (RAG) — V2
-* Local all-MiniLM-L6-v2 embeddings — free, unlimited, no API quota
-* ChromaDB vector database with 830 FDA drug labels
-* CrossEncoder reranking (ms-marco-MiniLM-L-6-v2) for precision
-* Query rewriting — extracts drug names + clinical intent keywords
-* Cosine similarity threshold — rejects irrelevant chunks
-* Evidence-grounded responses with source attribution
+### Retrieval-Augmented Generation (RAG)
+* Local all-MiniLM-L6-v2 embeddings: free, no API quota
+* ChromaDB with 830 openFDA drug label records, split into 11,898 section chunks (about 900 characters, 150 overlap)
+* Each chunk starts with `Drug: X | Section: Y |`, so the section and drug travel with the text
+* Retrieval pipeline: 40 candidates, drug-name guard, intent-to-section filter, CrossEncoder rerank (ms-marco-MiniLM-L-6-v2) down to 8, near-duplicate removal
+* Interaction searches include the partner drug's name
+* Distance metric is L2 (Chroma default)
 
-### Agentic Tool Calling — V3
-* LangGraph agent loop — Gemini decides when FDA tool is needed
-* `check_fda_database()` tool — query rewriting + ChromaDB + CrossEncoder
-* Conditional routing — clinical queries → FDA tool, out-of-scope → direct refusal
-* 95% tool routing accuracy (19/20) on a 20-query eval
-* 80% grounded responses (16/20) — drug named in the answer; see "How grounded is measured" below
+### Controlled Agent (V3)
+* LangGraph state graph; safety-critical routing is deterministic and local (free)
+* Gemini is called at most once per question, only to write the final answer
+* Prompt rules: answer only from evidence, refuse when evidence is missing, never infer an interaction because two drug names appear
+* Injection-safe intent detection: text after "SYSTEM:" cannot steer retrieval
+* `ROUTER_MODE=llm` keeps the older LLM router as an option
 
 ### Evaluation Framework
-* V2: 24-query eval — 100% direct lookup, 83% interaction, 100% contraindication
-* V3: 20-query agent eval — 95% tool routing (19/20), 80% grounded (16/20)
-* Separate retrieval and agent evaluation scripts
+* 50 questions in 7 categories: easy 14, hard 10, ambiguous 4, out-of-scope 6, made-up drugs 5, real drugs not in DB 5, prompt injection 6
+* Measures retrieval, faithfulness (lexical check + Gemini judge), correctness, latency, tokens and calls
+* Errors and quota failures are marked INVALID, never scored as pass or fail
+* Resumable and quota-aware (default 18 Gemini calls per day)
+* Regression test for every bug the eval found
 
 ### Production Infrastructure
-* FastAPI backend with API key security and input validation
-* Docker containerized deployment
-* Docker image (V2); was deployed on Azure Container Apps — free tier ended, now runs locally/in Docker
-* GitHub Actions CI: runs the pytest regression tests on every push
-* Custom HTML/JS frontend served from same container
-* Full audit trail per query — retrieval distance, latency, confidence score
+* FastAPI backend with API key middleware and input validation
+* Docker image; earlier deployed on Azure Container Apps (free tier ended, now runs locally or in Docker)
+* GitHub Actions CI runs the pytest suite on every push
+* Custom HTML/JS frontend served from the same container
+* Audit trail per query: retrieval distance, latency, token counts, calls
 
 ## 📸 System in Action
 
@@ -93,82 +84,87 @@ emotion detection, and full audit logging.
 
 ## Problem Statement
 
-Pharmacists in high-volume settings make 50+ drug interaction checks daily under time pressure. Errors in drug interaction assessment contribute to 1.5 million patient injuries annually in the US. Existing tools are either too slow, too generic, or not grounded in verified FDA data.
+Pharmacists in high-volume settings make 50+ drug interaction checks daily under time pressure. Preventable medication errors are a major source of patient harm. Existing tools are either too slow, too generic, or not grounded in verified FDA data.
 
-This system provides instant, FDA-verified drug interaction guidance with explicit risk flagging, evidence attribution, and full audit logging — designed as a decision support tool, not a replacement for clinical judgment.
+This system gives fast, FDA-grounded drug guidance with an explicit risk level and audit logging. If the FDA evidence is missing, it refuses instead of guessing. It is a decision support tool, not a replacement for clinical judgment.
 
 ## Project Goal
 
-To demonstrate how modern AI engineering combines RAG pipelines, agentic tool calling, vector databases, LLM reasoning, and cloud infrastructure to build a deployable, production-ready clinical decision support application.
+To show how RAG, a controlled agent, a vector database and LLM generation can be combined into a safe, measured clinical decision support API.
 
-This project focuses on **practical AI system building** — not standalone model training — showing how multiple AI components can be orchestrated into a real deployed product across two progressively advanced architectures:
+This project focuses on **practical AI system building**, not model training. It was built in two stages:
 
-- **V2** — Production RAG pipeline with evaluation, observability, and safety controls
-- **V3** — Agentic system where the LLM decides when and how to use the FDA retrieval tool
+- **V2**: RAG pipeline over 830 FDA drug label records with evaluation, audit logging and safety controls.
+- **V3**: Controlled agent (LangGraph). Safety routing is deterministic and the LLM writes the final answer from retrieved evidence, with at most 1 Gemini call per question. It was measured on a 50-question eval covering made-up drugs and prompt injection.
 
 ---
 
 ## 🚀 Current Implementation
 
-The system exists in two production-ready versions. All components are built, evaluated, and pushed to GitHub.
+The system exists in two versions. All components are built, evaluated, and pushed to GitHub.
 
 ### V2 — RAG Pipeline (main_demo.py)
 
 **FastAPI API Gateway**
-* Asynchronous API endpoints
+* Synchronous (`def`) endpoints, so requests don't block the event loop
 * Pydantic request validation with Optional typing
 * API key security middleware
-* Input sanitization — empty/oversized messages rejected
+* Input validation: empty/oversized messages rejected
 * RESTful architecture with Swagger docs
 
 **LangGraph 3-Node Pipeline**
-* Triage Node — clinical keyword detection, drug name extraction, query rewriting
-* Generation Node — FDA context injection, Gemini JSON output, grounding instruction
-* Telemetry Node — JSON parsing with regex fallback, risk level, confidence, emotion
+* Triage Node: clinical keyword detection, drug name extraction, query rewriting
+* Generation Node: FDA context injection, Gemini JSON output, grounding instruction
+* Telemetry Node: JSON parsing with regex fallback, risk level, confidence, emotion
 
 **Retrieval-Augmented Generation**
-* ChromaDB vector storage (830 FDA drug labels)
-* Local all-MiniLM-L6-v2 embeddings — free, unlimited
-* CrossEncoder reranking — ms-marco-MiniLM-L-6-v2
-* Cosine similarity threshold (0.95) — rejects irrelevant chunks
-* Query rewriting — drug names + clinical intent keywords
+* ChromaDB vector storage: 830 openFDA label records, split into 11,898 section chunks
+* Local all-MiniLM-L6-v2 embeddings (free, unlimited)
+* CrossEncoder reranking: ms-marco-MiniLM-L-6-v2
+* Retrieval guards: question must name a drug found in the chunk's drug name, a named drug never gets another drug's chunks, near-duplicate chunks dropped
+* Section-aware retrieval: intent (dosage, interactions, pregnancy, etc.) selects label sections first, then widens if too little is found
+* Query rewriting: drug names + clinical intent keywords + partner drug for interactions
 * openFDA API auto-ingestion on startup with duplicate removal
 
 **Observability**
 * Retrieval distance logged per query
 * Latency tracked per request
-* Full audit trail — session, risk tier, confidence, evidence blocks used
+* Audit trail: session, risk tier, confidence, evidence blocks used
 
-### V3 — Agentic Pipeline (main_agentic.py)
+### V3 — Controlled Agentic Pipeline (main_agentic.py)
 
-**LangGraph Agent Loop**
-* Agent node — Gemini decides whether FDA tool is needed
-* Tool node — executes check_fda_database()
-* Conditional routing — clinical → tool, out-of-scope → direct refusal
-* MemorySaver for session continuity
+**LangGraph Agent**
+* Deterministic local routing (free): out-of-scope gets a fixed scope reply, no usable evidence gets a fixed refusal, both with 0 Gemini calls
+* Gemini writes the final answer and risk level from retrieved evidence (max 1 call per question)
+* `ROUTER_MODE=llm` restores the old LLM router (experimental)
+* MemorySaver for session continuity, with per-session evidence isolation
 
 **FDA Tool (check_fda_database)**
-* Query rewriting — extracts drug names + clinical intent
-* ChromaDB retrieval — top 5 candidates
-* CrossEncoder reranking — scores and sorts by relevance
+* Query rewriting: drug names + clinical intent
+* ChromaDB retrieval: 40 candidates, CrossEncoder reranks to the best 8
 * Returns ranked evidence with reranker scores and vector distances
 
 **Evaluation Framework**
-* V2: 24-query eval — direct lookup 100%, interaction 83%, contraindication 100%
-* V3: 20-query agent eval — tool routing 95% (19/20), grounded 80% (16/20)
-* Separate evaluation scripts in /evaluation directory
+* 50 questions, 7 categories (easy, hard, ambiguous, out-of-scope, made-up drugs, drugs not in DB, prompt injection)
+* Retrieval 100%, correct 100% (lexical check), judge faithfulness 0.984, judge correctness 1.0 (Gemini judge, 31 answered questions)
+* 0.68 Gemini calls per question (max 1), latency p50 7.2s / p95 14.3s
+* Limits: tuned on this set, judge is Gemini judging Gemini, held-out set pending
+* Scripts in /evaluation
 
 **Frontend UI**
 * Custom HTML/CSS/JS chat interface
 * Live telemetry panel (risk, confidence, emotion)
-* Real-time audit trail display
+* Audit trail display
 * Served directly from FastAPI
 
 **Containerization & Deployment**
 * Dockerized with Azure Container Registry
-* Azure Container Apps hosting (was live; free tier ended — deploy steps are disabled)
+* Azure Container Apps hosting (was live; free tier ended, deploy steps disabled)
 * GitHub Actions CI runs the regression tests on every push (no auto-deploy now)
+  
 ---
+
+
 ## 🏗️ System Architecture
 
 ### V2 — RAG Pipeline
@@ -189,7 +185,7 @@ Triage Node
         │
         ▼
 ChromaDB Vector Search
-(830 FDA Records + Local Embeddings + Cosine Threshold)
+(830 FDA Label Records → 11,898 Section Chunks + Local Embeddings + L2 Distance Threshold)
         │
         ▼
 CrossEncoder Reranking
@@ -208,9 +204,10 @@ Structured Clinical Response + Full Audit Trail
 (retrieval_distance + latency_ms + evidence_sources)
 ```
 
-### V3 — Agentic Pipeline
+### V3 — Controlled Agentic Pipeline
 
 ```text
+
 User Query
         │
         ▼
@@ -218,58 +215,73 @@ FastAPI API Gateway
 (API Key Security + Pydantic Validation)
         │
         ▼
-LangGraph Agent Node
-(Gemini decides: does this need FDA evidence?)
+LangGraph Agent
+(Local router, 0 Gemini calls)
         │
-   ┌────┴────────────────┐
-   ▼                     ▼
-Clinical Query      Out-of-Scope Query
-   │                     │
-   ▼                     ▼
-check_fda_database()  Direct Refusal
-(Query Rewriting +    (No tool called)
-ChromaDB + CrossEncoder)
+   ┌────┴─────────────────┬───────────────────────┐
+   ▼                      ▼                       ▼
+Clinical Query       Out-of-Scope Query      Ambiguous Query
+   │                      │                       │
+   ▼                      ▼                       ▼
+check_fda_database()  Fixed scope reply      Clarifying reply
+ 1. Intent → label sections (Dosage, Interactions...)
+ 2. Drug-name guard (wrong-drug chunks removed)
+ 3. ChromaDB: 40 candidates
+ 4. CrossEncoder rerank → top 8, duplicates dropped
+   │
+   ├── No usable evidence → Fixed "insufficient FDA data" reply (0 calls)
    │
    ▼
 FDA Evidence
    │
    ▼
 Agent Node
-(Gemini synthesizes grounded clinical response)
+(Gemini, 1 call max: grounded answer + risk level)
         │
         ▼
-Response + tool_called + fda_evidence_used + risk_level + latency
+Response + llm_calls + prompt_tokens + output_tokens + risk_level + latency
 ```
+
 ---
 ## 📁 Project Structure
 
 ```text
 app/
-│
-├── main_demo.py          # V2 — FastAPI + LangGraph RAG pipeline
-├── main_agentic.py       # V3 — FastAPI + LangGraph agentic pipeline
-├── main_demo_backup.py   # V2 backup before Phase 6 changes
-│
+├── main_demo.py          # V2: FastAPI + LangGraph RAG (port 8000, ingest)
+├── main_agentic.py       # V3: FastAPI + LangGraph controlled agent (port 8001)
+├── chunking.py           # Section chunking (900 chars, 150 overlap, metadata)
+├── frontend.py           # Frontend routes
+├── main_demo_backup.py   # V2 backup (delete in cleanup)
 └── utils/
     └── logger.py         # Structured logging
 
 evaluation/
-├── test_cases.json       # 20 agent evaluation queries
-├── evaluate_agent.py     # V3 agent evaluation script
-└── results.json          # Latest evaluation results
+├── eval_set.json         # 50-question eval (7 categories)
+├── run_eval.py           # Retrieval, faithfulness, correctness, cost, judge
+└── runs/                 # Saved results (retrieval_*.json, judge.json)
+
+tests/
+├── test_routing.py
+├── test_retrieval_guards.py
+├── test_eval_scoring.py
+├── test_call_budget.py
+├── test_agentic_session.py
+├── test_chunking.py
+├── test_evidence_selection.py
+└── test_v2_startup.py
 
 static/
-└── index.html            # Frontend UI (V2)
+└── index.html            # Frontend UI
 
-screenshots/              # Testing proof screenshots
+screenshots/              # Testing proof
 
 .github/
 └── workflows/
-    └── deploy.yml        # GitHub Actions CI/CD
+    └── deploy.yml        # GitHub Actions CI (deploy disabled)
 
-Dockerfile                # Container build
-requirements.txt          # Python dependencies
-eval.py                   # V2 RAG evaluation script (24 queries)
+Dockerfile
+requirements.txt
+RULES.md                  # Project rules
 README.md
 ```
 
@@ -281,20 +293,24 @@ README.md
 ### V2 — RAG Pipeline (main_demo.py)
 1. Pharmacist submits query via frontend UI
 2. FastAPI validates and routes the request
-3. **Triage Node** — detects clinical keywords, rewrites query with drug names + intent keywords
-4. **RAG Node** — ChromaDB semantic search retrieves top 5 FDA chunks, CrossEncoder reranks them
-5. **Generation Node** — Gemini 2.5 Flash receives retrieved FDA context + generates structured JSON response
-6. **Telemetry Node** — parses JSON, extracts risk level, confidence score, emotion state
-7. Structured clinical response returned with full audit trail including retrieval distance and latency
+3. **Triage Node**: detects clinical keywords, rewrites query with drug names + intent keywords
+4. **RAG Node**: ChromaDB semantic search over 11,898 section chunks (from 830 FDA label records), CrossEncoder reranks them
+5. **Generation Node**: Gemini 2.5 Flash receives the retrieved FDA context and generates a structured JSON response
+6. **Telemetry Node**: parses JSON, extracts risk level, confidence score, emotion state
+7. Structured clinical response returned with audit trail including retrieval distance and latency
 
-### V3 — Agentic Pipeline (main_agentic.py)
+### V3 — Controlled Agentic Pipeline (main_agentic.py)
 1. Pharmacist submits query via FastAPI
-2. **Agent Node** — Gemini decides: does this query need FDA evidence?
-3. If YES → calls `check_fda_database()` tool → query rewriting → ChromaDB → CrossEncoder reranking
-4. FDA evidence injected back into agent context
-5. **Agent Node** — Gemini synthesizes clinical response grounded in FDA evidence
-6. If NO (out-of-scope) → agent refuses directly without calling tool
-7. Response returned with tool_called flag, grounding status, risk level, latency
+2. **Local router (0 LLM calls)**: keyword check for clinical scope
+   - Out of scope → fixed scope reply with emergency line (0 calls)
+3. **Intent detection (0 calls)**: maps the question to label sections (Dosage, Interactions, Boxed Warning, Pregnancy, etc.). Injected text after "SYSTEM:" is ignored.
+4. **Retrieval**: ChromaDB returns 40 candidates. Drug-name guard: the question must name a drug in the chunk, and a named drug never receives another drug's chunks. Interaction searches include the partner drug.
+5. **Rerank + dedupe**: CrossEncoder narrows to the best 8 chunks, near-duplicate chunks are dropped
+6. No usable evidence → fixed "I don't have sufficient FDA data" reply (0 calls). Risk level is capped at moderate.
+7. **Generation (1 Gemini call)**: answers only from the retrieved evidence, with risk level
+8. Response returned with risk level, `llm_calls`, `prompt_tokens`, `output_tokens` and latency
+
+`ROUTER_MODE=local` is the default. `ROUTER_MODE=llm` is an experimental LLM router.
 
 ---
 ## 🔄 Knowledge Ingestion Pipeline
