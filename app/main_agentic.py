@@ -250,10 +250,30 @@ heart alcohol interaction interactions interact together combine mixing warning 
 contraindications pregnancy overdose used using treat treatment""".split())
 
 
+BRAND_TO_GENERIC = {"coumadin": "warfarin", "jantoven": "warfarin", "glucophage": "metformin",
+    "advil": "ibuprofen", "motrin": "ibuprofen", "lipitor": "atorvastatin", "prinivil": "lisinopril",
+    "zestril": "lisinopril", "norvasc": "amlodipine", "prilosec": "omeprazole", "synthroid": "levothyroxine",
+    "lopressor": "metoprolol", "plavix": "clopidogrel", "cordarone": "amiodarone", "ventolin": "albuterol"}
+CLEAN_DRUGS = ["warfarin", "aspirin", "ibuprofen", "metformin", "lisinopril", "atorvastatin", "omeprazole",
+    "amlodipine", "metoprolol", "levothyroxine", "albuterol", "amiodarone", "clopidogrel"]
+
+
 def _drug_terms(lower_query: str) -> List[str]:
     """Words in the question that could be a drug name."""
+    import difflib
     tokens = re.findall(r"[a-z][a-z\-]{3,}", lower_query)
-    return [t for t in tokens if t not in NON_DRUG_WORDS]
+    out = []
+    for t in tokens:
+        if t in NON_DRUG_WORDS:
+            continue
+        if t in BRAND_TO_GENERIC:
+            t = BRAND_TO_GENERIC[t]
+        elif not any(t in n for n in CLEAN_DRUGS):
+            close = difflib.get_close_matches(t, CLEAN_DRUGS, n=1, cutoff=0.85)
+            if close:
+                t = close[0]
+        out.append(t)
+    return out
 
 
 def _chunk_drug_name(doc: str) -> str:
