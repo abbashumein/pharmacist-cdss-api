@@ -109,3 +109,11 @@ def test_interaction_search_also_mentions_the_other_drug(monkeypatch):
     queries = [c["q"] for c in db.calls]
     assert any(q.startswith("Drug: warfarin") and "amiodarone" in q for q in queries)
     assert any(q.startswith("Drug: amiodarone") and "warfarin" in q for q in queries)
+
+
+def test_combo_product_does_not_leak_into_single_drug_question():
+    from app.main_agentic import _is_combo_leak
+    q = "what is atorvastatin used for?"
+    assert _is_combo_leak("amlodipine and atorvastatin", "atorvastatin", q)
+    assert not _is_combo_leak("atorvastatin calcium, film coated (atorvastatin calcium)", "atorvastatin", q)
+    assert not _is_combo_leak("amlodipine and atorvastatin", "atorvastatin", "atorvastatin with amlodipine?")

@@ -281,6 +281,17 @@ def _chunk_drug_name(doc: str) -> str:
     return doc.split(" | Section:")[0].lower()
 
 
+def _is_combo_leak(chunk_name: str, drug: str, lower_query: str) -> bool:
+    """True if the label is a combination product (e.g. 'amlodipine and atorvastatin') whose other
+    ingredient the question never mentions."""
+    name = re.sub(r"\(.*?\)", "", chunk_name)
+    parts = [x.strip() for x in re.split(r"\s+and\s+|\s*/\s*|\s*\+\s*", name) if x.strip()]
+    if len(parts) < 2:
+        return False
+    others = [x for x in parts if drug not in x]
+    return bool(others) and not any(o.split()[0] in lower_query for o in others)
+
+
 def _dedupe(ranked: list) -> list:
     """Drop near-identical chunks. Many manufacturers publish the same label text, so the
     top results can be the same paragraph 3-5 times and crowd out other useful chunks.
@@ -378,6 +389,9 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
                 # Keep only chunks that are really about this drug (a section filter must
                 # never let another drug's chunk through).
                 kept = [(d, x) for d, x in zip(documents, distances) if drug in _chunk_drug_name(d)]
+                if len(found_drugs) == 1:
+                    single = [(d, x) for d, x in kept if not _is_combo_leak(_chunk_drug_name(d), drug, lower_query)]
+                    kept = single or kept
                 documents = [d for d, _ in kept]
                 distances = [x for _, x in kept]
 
