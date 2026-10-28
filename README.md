@@ -443,25 +443,49 @@ against the raw query text instead of the resolved drug name, discarding correct
 
 ## V3 Agentic Key Findings (updated Oct 2026)
 
-V3 is a controlled agent: safety-critical steps are deterministic (local scope routing, drug-name guard, fixed refusals), and Gemini is used for one thing,writing the answer from retrieved evidence (max 1 call per question). `ROUTER_MODE=local` is the default; `ROUTER_MODE=llm` restores the earlier Gemini-routed version.
+V3 is a controlled agent: safety-critical steps are deterministic (local scope routing, drug-name guard,
+brand-name and typo normalization, fixed refusals), and Gemini is used for one thing, writing the answer from
+retrieved evidence (max 1 call per question). It has no open-ended agent loop and does not retry when evidence
+is weak. `ROUTER_MODE=local` is the default; `ROUTER_MODE=llm` restores the earlier Gemini-routed version.
 
-**Index:** 830 openFDA label records, split into 11,898 section chunks (~900 characters, 150 overlap; each chunk carries drug and section). Distance metric is L2.
+**Index:** 830 openFDA label records, split into 11,898 section chunks (~900 characters, 150 overlap; each
+chunk carries drug and section). Distance metric is L2.
 
-**Evaluation:** 50 questions in 7 categories (easy 14, hard 10, ambiguous 4, out-of-scope 6, made-up drugs 5, real drugs not in the database 5, prompt injection 6). All 50 ran end to end.
+**Evaluation:** 60 questions, all run end to end: the original 50 (easy 14, hard 10, ambiguous 4, out-of-scope 6,
+made-up drugs 5, real drugs not in the database 5, prompt injection 6) plus a 10-question held-out set
+(paraphrases, brand names, a typo, indirect references, controls).
 
 | Metric | Result |
 |---|---|
-| Retrieval OK (38 scored questions) | 100% |
-| Correct (rule-based fact check) | 100% |
-| Faithfulness, Gemini judge (31 answered questions) | 0.984 |
-| Correctness, Gemini judge (31 answered questions) | 1.0 |
-| Gemini calls per question | 0.68 average, 1 max |
-| Latency (answered questions) | p50 8.6 s, p95 14.3 s |
-| Tokens per answered question | ~1,900 prompt, ~190 output |
+| Retrieval OK (48 scored questions) | 100% |
+| Correct (rule-based fact check, 60 questions) | 100% |
+| Faithfulness, Gemini judge (39 generated answers) | 0.974 |
+| Correctness, Gemini judge (39 generated answers) | 1.0 |
+| Gemini calls per question | 0.70 average, 1 max |
+| Latency (answered questions) | p50 10.1 s, p95 15.5 s |
+| Tokens per answered question | ~1,900 prompt, ~200 output |
 
-Retrieval progression on the same questions: 81.6% (old chunks) → 73.7%
-(after rebuild, junk matches on the larger index) → 100% (after
-drug-name guard, reranking, and section filtering).
+**Held-out set (10 questions, written after the 50-question set was tuned):**
+4/10 on the first retrieval-only look → 10/10 end to end. The one real code fix was brand-name and typo
+normalization (Coumadin → warfarin, Glucophage → metformin, "warfrin" → warfarin), guarded so that made-up
+drugs are never "corrected" into real ones. Five gold labels (#51, #53, #54, #59, #60) were corrected after
+review because they had no expected fact defined; each correction is recorded in the question's `note`.
+Indirect references ("my grandma's blood thinner") get a safe fixed refusal with 0 calls.
+
+**How the numbers changed over time**
+* Retrieval on the original questions: 81.6% (old chunks) → 73.7% (after rebuild, junk matches on the larger
+  index) → 100% (after drug-name guard, reranking, section filtering).
+* The first Gemini-judge run scored faithfulness 0.79. The judge was only seeing the first 3,500 characters
+  of the evidence. After giving it the full evidence it scored 0.984 on the original 31 answers (0.974 on all 39).
+* A prompt-injection case (#47) was fixed by ignoring text after "SYSTEM:" when detecting the question's intent.
+
+**Caveats**
+* The original 50 questions were used to find and fix bugs, so they are not a held-out result. The 10
+  held-out questions are small, and their gold was corrected after review (see above).
+* The judge is Gemini judging Gemini, on a small sample. Treat 0.974 as a strong signal, not proof.
+* Combination products (for example amoxicillin/clavulanate) can still appear in single-drug answers
+  (#41, #60). Planned fix: match the whole drug name.
+
 
 **Bugs found by the eval and fixed (each has a regression test):**
 - Duplicate chunks from repeated manufacturer text wasted evidence slots.
