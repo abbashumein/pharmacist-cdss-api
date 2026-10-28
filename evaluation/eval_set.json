@@ -920,10 +920,12 @@
     "Interactions",
     "Warnings"
    ],
-   "facts": [],
+   "facts": [
+    "renal"
+   ],
    "forbidden": [],
    "risk_not_low": false,
-   "note": "paraphrase; gold section widened after review (kidney text is in Interactions)"
+   "note": "paraphrase; gold facts added after manual review of a correct answer"
   },
   {
    "id": 52,

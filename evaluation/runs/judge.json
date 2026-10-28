@@ -184,5 +184,53 @@
   "faithful": "yes",
   "correct": "yes",
   "reason": "Answer is directly from the provided evidence."
+ },
+ "52": {
+  "id": 52,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All claims directly supported by comprehensive evidence regarding GI upset."
+ },
+ "53": {
+  "id": 53,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All indications and limitations directly copied from the evidence text."
+ },
+ "54": {
+  "id": 54,
+  "faithful": "partial",
+  "correct": "yes",
+  "reason": "Lactic acidosis and hypoglycemia details included, but not fully explicit in snippets."
+ },
+ "55": {
+  "id": 55,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All key points of boxed warning are directly from evidence text."
+ },
+ "56": {
+  "id": 56,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All stated risks and recommendations for co-administration are directly supported."
+ },
+ "59": {
+  "id": 59,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All reported side effects, common and post-marketing, are directly from evidence."
+ },
+ "60": {
+  "id": 60,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All indications for atorvastatin are directly stated in the evidence text."
+ },
+ "51": {
+  "id": 51,
+  "faithful": "yes",
+  "correct": "yes",
+  "reason": "All explanations regarding kidney effects and drug interactions are supported."
  }
 }

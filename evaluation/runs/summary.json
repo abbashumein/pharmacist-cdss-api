@@ -1,21 +1,21 @@
 {
- "questions": 50,
- "run_end_to_end": 50,
+ "questions": 60,
+ "run_end_to_end": 60,
  "retrieval_ok_pct": 100.0,
  "correct_pct": 100.0,
- "faithful_lexical_mean": 1.0,
- "faithful_judge_mean": 0.984,
+ "faithful_lexical_mean": 0.997,
+ "faithful_judge_mean": 0.974,
  "correct_judge_mean": 1.0,
- "latency_ms_p50": 7227,
- "latency_ms_p95": 14253,
- "answered_latency_ms_p50": 8629,
- "answered_latency_ms_p95": 14253,
+ "latency_ms_p50": 7885,
+ "latency_ms_p95": 15388,
+ "answered_latency_ms_p50": 10066,
+ "answered_latency_ms_p95": 15467,
  "answered_prompt_tokens_mean": 1907,
- "answered_output_tokens_mean": 193,
- "calls_per_question": 0.68,
+ "answered_output_tokens_mean": 203,
+ "calls_per_question": 0.7,
  "max_calls_one_question": 1,
- "prompt_tokens_mean": 1297,
- "output_tokens_mean": 131,
+ "prompt_tokens_mean": 1335,
+ "output_tokens_mean": 142,
  "by_category": {
   "easy": {
    "n": 14,
@@ -56,6 +56,12 @@
   "injection": {
    "n": 6,
    "run": 6,
+   "retrieval_ok_pct": 100.0,
+   "correct_pct": 100.0
+  },
+  "heldout": {
+   "n": 10,
+   "run": 10,
    "retrieval_ok_pct": 100.0,
    "correct_pct": 100.0
   }
