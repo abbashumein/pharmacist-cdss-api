@@ -8,7 +8,8 @@ The system exists in two versions:
 
 - **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage, retrieval, generation) over 830 openFDA drug label records, indexed as 11,898 section-level chunks (about 900 characters, 150 overlap, each tagged with drug and section). Local all-MiniLM-L6-v2 embeddings in ChromaDB (L2 distance), a drug-name guard that stops one drug's chunks answering for another, and CrossEncoder reranking (40 candidates narrowed to 8, near-duplicates removed).
 
-- **V3 (Agentic RAG)** — LangGraph agent with deterministic safety routing and LLM generation. Local keyword routing (0 calls) sends out-of-scope questions to a fixed scope reply and no-evidence questions to a fixed "insufficient FDA data" refusal. Intent detection maps the question to label sections and ignores injected "SYSTEM:" text. Interaction searches include the partner drug. At most 1 Gemini call per question (0.68 on average). `ROUTER_MODE=llm` restores the old LLM router. I kept routing deterministic on purpose: predictable cost, latency and safety matter more than autonomy in a medical setting.
+- **V3 (Control Agentic RAG)** — LangGraph agent with deterministic safety routing and LLM generation. Local keyword routing (0 calls) sends out-of-scope questions to a fixed scope reply and no-evidence questions to a fixed "insufficient FDA data" refusal. Intent detection maps the question to label sections and ignores injected "SYSTEM:" text. Interaction searches include the partner drug. At most 1 Gemini call per question (0.68 on average). `ROUTER_MODE=llm` restores the old LLM router. I kept routing deterministic on purpose: predictable cost, latency and safety matter more than autonomy in a medical setting. Each answer also returns a `sources` list (for example `WARFARIN - Interactions`), built in code from the label sections actually sent to the model, so a pharmacist can check the answer against the label.
+
 
 Both versions return structured clinical responses with a risk level and full audit logging.
 
@@ -23,6 +24,8 @@ Both versions return structured clinical responses with a risk level and full au
 * Answers grounded only in retrieved FDA label text
 * Out-of-scope queries get a fixed reply (0 model calls), with an emergency line
 * Fixed refusal ("I don't have sufficient FDA data") when no usable evidence is found (0 model calls)
+* Source citations: every answer lists the FDA label sections it was built from (`sources` field, 0 extra model calls, empty when the system refuses)
+
 
 ### Retrieval-Augmented Generation (RAG)
 * Local all-MiniLM-L6-v2 embeddings: free, no API quota
@@ -239,7 +242,7 @@ Agent Node
 (Gemini, 1 call max: grounded answer + risk level)
         │
         ▼
-Response + llm_calls + prompt_tokens + output_tokens + risk_level + latency
+Response + sources + llm_calls + prompt_tokens + output_tokens + risk_level + latency
 ```
 
 ---
@@ -308,9 +311,7 @@ README.md
 5. **Rerank + dedupe**: CrossEncoder narrows to the best 8 chunks, near-duplicate chunks are dropped
 6. No usable evidence → fixed "I don't have sufficient FDA data" reply (0 calls). Risk level is capped at moderate.
 7. **Generation (1 Gemini call)**: answers only from the retrieved evidence, with risk level
-8. Response returned with risk level, `llm_calls`, `prompt_tokens`, `output_tokens` and latency
-
-`ROUTER_MODE=local` is the default. `ROUTER_MODE=llm` is an experimental LLM router.
+8. Response returned with risk level, sources (label sections used), llm_calls, prompt_tokens, output_tokens and latency `ROUTER_MODE=local` is the default. `ROUTER_MODE=llm` is an experimental LLM router.
 
 ---
 ## 🔄 Knowledge Ingestion Pipeline
@@ -348,7 +349,7 @@ RAG or Agentic Retrieval Layer
 |---|---|
 | Backend API | FastAPI + Uvicorn |
 | AI Orchestration | LangGraph 3-node pipeline |
-| Vector Database | ChromaDB + Gemini Embeddings |
+| Vector Database | ChromaDB + Local Embeddings |
 | LLM | Gemini 2.5 Flash |
 | Containerization | Docker |
 | Cloud Hosting | Azure Container Apps (was live; free tier ended) |
@@ -405,6 +406,8 @@ RAG or Agentic Retrieval Layer
 | Frontend Integration | Custom HTML/JS served from FastAPI |
 | Reliability & Safety | Drug-name guard, fixed refusal when no evidence, injection-safe intent detection, regression tests for every bug |
 | Cost & Latency | 0.68 calls/question (max 1), p50 7.2s / p95 14.3s, ~1,900 prompt tokens |
+| Traceability | `sources` in every answer, built from the retrieved chunks' drug and section headers (no model calls; tested) |
+
 
 ## Performance Metrics
 
@@ -415,12 +418,12 @@ RAG or Agentic Retrieval Layer
 | Out-of-Scope Rejection | Not tested | 100% (3/3) | 100% (6/6) |
 | Records in ChromaDB | 19 FDA labels | 444 FDA labels | 830 FDA labels (11,898 section chunks) |
 | Similarity Threshold | None | 0.95 L2 distance | Drug-name guard + rerank to top 8 (distance cutoff replaced) |
-| Eval Test Cases | 10 queries | 24 queries | 50 queries (7 categories) |
+| Eval Test Cases | 10 queries | 24 queries | 60 queries (7 categories) |
 | p95 Latency | ~16s (cold start) | ~5-8s (local) | 14.3s (p50 8.6s, includes Gemini call) |
-| Cost per Request | ~$0.0008 | ~$0.0004 | 0.68 Gemini calls (max 1), ~1,900 prompt + ~190 output tokens |
+| Cost per Request | ~$0.0008 | ~$0.0004 | 0.70 Gemini calls (max 1), ~1,900 prompt + ~190 output tokens |
 | Retrieval Accuracy | N/A | N/A | 100% |
-| Correctness (judge) | N/A | N/A | 1.0 (Gemini judge, 31 answers) |
-| Faithfulness (judge) | N/A | N/A | 0.984 (Gemini judge, 31 answers) |
+| Correctness (judge) | N/A | N/A | 1.0 (Gemini judge, 39 answers) |
+| Faithfulness (judge) | N/A | N/A | 0.974 (Gemini judge, 39 answers) |
 
 
 
@@ -503,12 +506,13 @@ Indirect references ("my grandma's blood thinner") get a safe fixed refusal with
 - The system does not infer an interaction because two drug names appear together (e.g. metformin + lisinopril: both are in the corpus, but no chunk documents an interaction, so it declines). This was observed in an earlier version and is not one of the 50 eval questions.
 
 **Known limitations:**
-- The system was tuned on this eval set, so the numbers are not a held-out measurement. A fresh held-out set is planned.
+- The system was tuned on this eval set, so the numbers are 10 held-out questions, small.
 - The judge is Gemini grading Gemini, on a small sample (31 answers).
 - One answer (#3, warfarin boxed warning) was judged partial: the bleeding-risk statement is not word-for-word in the retrieved text.
 - Combination-product labels (e.g. amoxicillin/clavulanate) can still appear as evidence for a single-drug question.
 - Routing keyword lists are hand-written, so a medical word missing from them can be treated as out of scope.
 - Earlier figures (95% routing, 80% grounded, based on Gemini function-calling and a weaker metric) no longer apply.
+- Citations show which label sections were supplied as evidence, not which sentence came from where. Claim-level citations are not implemented.
 
 
 ## How grounded is measured
