@@ -48,3 +48,12 @@ def test_made_up_drugs_are_not_corrected():
         assert not set(_drug_terms(q)) & {"warfarin", "aspirin", "ibuprofen", "metformin", "lisinopril",
             "atorvastatin", "omeprazole", "amlodipine", "metoprolol", "levothyroxine", "albuterol",
             "amiodarone", "clopidogrel"}
+
+
+def test_sources_from_chunk_headers():
+    from app.main_agentic import _sources_from
+    docs = ["Drug: WARFARIN | Section: Interactions | text a",
+            "Drug: WARFARIN | Section: Interactions | text b",
+            "Drug: ASPIRIN | Section: Warnings | text c",
+            "no header here"]
+    assert _sources_from(docs) == ["WARFARIN - Interactions", "ASPIRIN - Warnings"]

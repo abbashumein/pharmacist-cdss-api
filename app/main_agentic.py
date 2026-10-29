@@ -292,6 +292,19 @@ def _is_combo_leak(chunk_name: str, drug: str, lower_query: str) -> bool:
     return bool(others) and not any(o.split()[0] in lower_query for o in others)
 
 
+def _sources_from(docs: List[str], limit: int = 5) -> List[str]:
+    """Unique 'Drug (Section)' labels of the chunks sent to the model, best first."""
+    out: List[str] = []
+    for d in docs:
+        m = re.match(r"Drug: (.*?) \| Section: (.*?) \|", d)
+        if not m:
+            continue
+        label = f"{m.group(1).strip()[:60]} - {m.group(2).strip()}"
+        if label not in out:
+            out.append(label)
+    return out[:limit]
+
+
 def _dedupe(ranked: list) -> list:
     """Drop near-identical chunks. Many manufacturers publish the same label text, so the
     top results can be the same paragraph 3-5 times and crowd out other useful chunks.
@@ -455,7 +468,8 @@ def check_fda_database(query: str, extracted_drug: Optional[str] = None) -> Dict
                 f"FDA database search for: {query}\n\n"
                 + "\n\n".join(evidence_lines)
             ),
-            "chunks": [doc for _, doc, _, _ in usable]
+            "chunks": [doc for _, doc, _, _ in usable],
+            "sources": _sources_from([doc for _, doc, _, _ in usable])
         }
 
     except Exception as e:
@@ -485,6 +499,7 @@ class AgentState(BaseModel):
     llm_calls: int = 0                      # Gemini calls made this turn
     prompt_tokens: int = 0
     output_tokens: int = 0
+    sources: List[str] = []                 # evidence labels shown to the user
 
 
 def build_turn_state(session_id: str, message: str) -> Dict[str, Any]:
@@ -511,6 +526,7 @@ def build_turn_state(session_id: str, message: str) -> Dict[str, Any]:
         "llm_calls": 0,
         "prompt_tokens": 0,
         "output_tokens": 0,
+        "sources": [],
     }
 
 
@@ -553,6 +569,7 @@ def tool_node(state: AgentState) -> Dict[str, Any]:
         "fda_evidence": result["evidence_text"],
         "has_usable_evidence": result["has_usable_evidence"],
         "retrieval_distance": result["retrieval_distance"],
+        "sources": result.get("sources", []),
         "tool_called": True
     }
 
@@ -842,5 +859,6 @@ def agent_chat(payload: AgentChatRequest):
         "llm_calls": output.get("llm_calls", 0),
         "prompt_tokens": output.get("prompt_tokens", 0),
         "output_tokens": output.get("output_tokens", 0),
+        "sources": output.get("sources", []),
         "latency_ms": round((time.time() - request_start) * 1000)
     }

@@ -242,3 +242,28 @@ def test_off_topic_question_makes_no_routing_call(client, monkeypatch):
     monkeypatch.setattr(main_agentic, "call_gemini_with_retry", fake)
     _chat(client, "cost-3", "What is the capital of France?")
     assert routing_calls == []
+
+
+def _fda_with_sources(query, extracted_drug=None):
+    out = _fake_fda(query, extracted_drug)
+    out["sources"] = ["WARFARIN (Interactions)", "ASPIRIN (Warnings)"]
+    return out
+
+
+def _fda_no_evidence(query, extracted_drug=None):
+    return {"has_usable_evidence": False, "retrieval_distance": None,
+            "evidence_text": "No sufficiently relevant FDA evidence found for this query.", "chunks": []}
+
+
+def test_chat_response_includes_sources(client, monkeypatch):
+    monkeypatch.setattr(main_agentic, "check_fda_database", _fda_with_sources)
+    monkeypatch.setattr(main_agentic, "call_gemini_with_retry", _fake_gemini_factory([], []))
+    res = _chat(client, "src-1", "Can warfarin and aspirin be taken together?")
+    assert res["sources"] == ["WARFARIN (Interactions)", "ASPIRIN (Warnings)"]
+
+
+def test_refusal_has_no_sources(client, monkeypatch):
+    monkeypatch.setattr(main_agentic, "check_fda_database", _fda_no_evidence)
+    monkeypatch.setattr(main_agentic, "call_gemini_with_retry", _fake_gemini_factory([], []))
+    res = _chat(client, "src-2", "What are the side effects of warfarin?")
+    assert res["sources"] == []
