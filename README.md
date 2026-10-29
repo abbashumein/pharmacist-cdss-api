@@ -2,7 +2,7 @@
 
 A Clinical Decision Support System that helps pharmacists check drug interactions, dosing, warnings and side effects, with every answer grounded in FDA drug label text. It evolved from a fixed RAG pipeline (V2) into a controlled agentic system (V3): safety-critical routing is deterministic, and the LLM only writes the final answer from retrieved evidence. When evidence is missing, it refuses with a fixed message instead of guessing.
 
-Built to be measured, not just demoed: a 50-question evaluation (including made-up drugs and prompt-injection attacks), regression tests for every bug found, and cost tracking (at most 1 LLM call per question).
+Built to be measured, not just demoed: a 60-question evaluation (including made-up drugs and prompt-injection attacks), regression tests for every bug found, and cost tracking (at most 1 LLM call per question).
 
 The system exists in two versions:
 
