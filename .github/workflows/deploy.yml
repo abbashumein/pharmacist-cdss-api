@@ -26,7 +26,7 @@ jobs:
       env:
         GEMINI_API_KEY: test-key
         CDSS_API_KEY: test-cdss-key
-      run: python -m pytest tests/test_agentic_session.py tests/test_v2_startup.py -v
+      run: python -m pytest tests/test_routing.py tests/test_retrieval_guards.py tests/test_eval_scoring.py tests/test_call_budget.py tests/test_agentic_session.py tests/test_chunking.py tests/test_evidence_selection.py tests/test_v2_startup.py -v
 
   # Azure deployment is disabled: the free tier ended. The app was deployed
   # on Azure Container Apps earlier and now runs locally / in Docker.
