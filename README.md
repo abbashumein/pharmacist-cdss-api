@@ -8,7 +8,7 @@ The system exists in two versions:
 
 - **V2 (Advanced RAG Pipeline)** — LangGraph 3-node pipeline (triage, retrieval, generation) over 830 openFDA drug label records, indexed as 11,898 section-level chunks (about 900 characters, 150 overlap, each tagged with drug and section). Local all-MiniLM-L6-v2 embeddings in ChromaDB (L2 distance), a drug-name guard that stops one drug's chunks answering for another, and CrossEncoder reranking (40 candidates narrowed to 8, near-duplicates removed).
 
-- **V3 (Control Agentic RAG)** — LangGraph agent with deterministic safety routing and LLM generation. Local keyword routing (0 calls) sends out-of-scope questions to a fixed scope reply and no-evidence questions to a fixed "insufficient FDA data" refusal. Intent detection maps the question to label sections and ignores injected "SYSTEM:" text. Interaction searches include the partner drug. At most 1 Gemini call per question (0.68 on average). `ROUTER_MODE=llm` restores the old LLM router. I kept routing deterministic on purpose: predictable cost, latency and safety matter more than autonomy in a medical setting. Each answer also returns a `sources` list (for example `WARFARIN - Interactions`), built in code from the label sections actually sent to the model, so a pharmacist can check the answer against the label.
+- **V3 (Control Agentic RAG)** — LangGraph agent with deterministic safety routing and LLM generation. Local keyword routing (0 calls) sends out-of-scope questions to a fixed scope reply and no-evidence questions to a fixed "insufficient FDA data" refusal. Intent detection maps the question to label sections and ignores injected "SYSTEM:" text. Interaction searches include the partner drug. At most 1 Gemini call per question (0.70 on average). `ROUTER_MODE=llm` restores the old LLM router. I kept routing deterministic on purpose: predictable cost, latency and safety matter more than autonomy in a medical setting. Each answer also returns a `sources` list (for example `WARFARIN - Interactions`), built in code from the label sections actually sent to the model, so a pharmacist can check the answer against the label.
 
 
 Both versions return structured clinical responses with a risk level and full audit logging.
@@ -43,7 +43,7 @@ Both versions return structured clinical responses with a risk level and full au
 * `ROUTER_MODE=llm` keeps the older LLM router as an option
 
 ### Evaluation Framework
-* 50 questions in 7 categories: easy 14, hard 10, ambiguous 4, out-of-scope 6, made-up drugs 5, real drugs not in DB 5, prompt injection 6
+* 50 questions in 7 categories: easy 14, hard 10, ambiguous 4, out-of-scope 6, made-up drugs 5, real drugs not in DB 5, prompt injection 6 (plus a 10-question follow-up set)
 * Measures retrieval, faithfulness (lexical check + Gemini judge), correctness, latency, tokens and calls
 * Errors and quota failures are marked INVALID, never scored as pass or fail
 * Resumable and quota-aware (default 18 Gemini calls per day)
@@ -98,7 +98,7 @@ To show how RAG, a controlled agent, a vector database and LLM generation can be
 This project focuses on **practical AI system building**, not model training. It was built in two stages:
 
 - **V2**: RAG pipeline over 830 FDA drug label records with evaluation, audit logging and safety controls.
-- **V3**: Controlled agent (LangGraph). Safety routing is deterministic and the LLM writes the final answer from retrieved evidence, with at most 1 Gemini call per question. It was measured on a 50-question eval covering made-up drugs and prompt injection.
+- **V3**: Controlled agent (LangGraph). Safety routing is deterministic and the LLM writes the final answer from retrieved evidence, with at most 1 Gemini call per question. It was measured on a 60-question eval (50 questions tuned on, plus a 10-question follow-up set) covering made-up drugs and prompt injection.
 
 ---
 
@@ -148,10 +148,10 @@ The system exists in two versions. All components are built, evaluated, and push
 * Returns ranked evidence with reranker scores and vector distances
 
 **Evaluation Framework**
-* 50 questions, 7 categories (easy, hard, ambiguous, out-of-scope, made-up drugs, drugs not in DB, prompt injection)
-* Retrieval 100%, correct 100% (lexical check), judge faithfulness 0.984, judge correctness 1.0 (Gemini judge, 31 answered questions)
-* 0.68 Gemini calls per question (max 1), latency p50 7.2s / p95 14.3s
-* Limits: tuned on this set, judge is Gemini judging Gemini, held-out set pending
+* 60 questions: 7 categories (easy, hard, ambiguous, out-of-scope, made-up drugs, drugs not in DB, prompt injection) plus a 10-question follow-up set
+* Retrieval 100%, correct 100% (lexical check), judge faithfulness 0.974, judge correctness 0.974 (Gemini judge, 39 answered questions)
+* 0.70 Gemini calls per question (max 1), answered-question latency p50 8.6s / p95 15.5s
+* Limits: tuned on this set, judge is Gemini judging Gemini; a 10-question follow-up set was added later (see Results)
 * Scripts in /evaluation
 
 **Frontend UI**
@@ -253,13 +253,12 @@ app/
 ├── main_demo.py          # V2: FastAPI + LangGraph RAG (port 8000, ingest)
 ├── main_agentic.py       # V3: FastAPI + LangGraph controlled agent (port 8001)
 ├── chunking.py           # Section chunking (900 chars, 150 overlap, metadata)
-├── frontend.py           # Frontend routes
 ├── main_demo_backup.py   # V2 backup (delete in cleanup)
 └── utils/
     └── logger.py         # Structured logging
 
 evaluation/
-├── eval_set.json         # 50-question eval (7 categories)
+├── eval_set.json         # 60-question eval (7 categories + 10 follow-up)
 ├── run_eval.py           # Retrieval, faithfulness, correctness, cost, judge
 └── runs/                 # Saved results (retrieval_*.json, judge.json)
 
@@ -367,7 +366,7 @@ RAG or Agentic Retrieval Layer
 |---|---|
 | Language | Python 3.11 |
 | API Framework | FastAPI + Uvicorn |
-| AI Orchestration | LangGraph (RAG pipeline + Agentic loop) |
+| AI Orchestration | LangGraph (RAG pipeline + controlled agent) |
 | LLM | Gemini 2.5 Flash (google-genai SDK) |
 | Embeddings | Local all-MiniLM-L6-v2 (sentence-transformers) |
 | Reranker | CrossEncoder ms-marco-MiniLM-L-6-v2 |
@@ -396,7 +395,7 @@ RAG or Agentic Retrieval Layer
 | Reranking | CrossEncoder ms-marco-MiniLM-L-6-v2 |
 | Query Rewriting | Drug-name extraction, intent-to-section mapping, partner-drug-aware interaction search |
 | Structured Output | Gemini JSON output + Pydantic validation |
-| Evaluation | 50-question eval (7 categories incl. made-up drugs, prompt injection): retrieval, faithfulness (lexical + Gemini judge), correctness, cost |
+| Evaluation | 60-question eval (7 categories incl. made-up drugs, prompt injection, plus a 10-question follow-up set): retrieval, faithfulness (lexical + Gemini judge), correctness, cost |
 | API Engineering | FastAPI + Pydantic validation + input sanitization |
 | Containerization | Docker + Azure Container Registry |
 | CI | GitHub Actions (tests on every push; deploy disabled) |
@@ -405,7 +404,7 @@ RAG or Agentic Retrieval Layer
 | Security | API Key middleware + secret management |
 | Frontend Integration | Custom HTML/JS served from FastAPI |
 | Reliability & Safety | Drug-name guard, fixed refusal when no evidence, injection-safe intent detection, regression tests for every bug |
-| Cost & Latency | 0.68 calls/question (max 1), p50 7.2s / p95 14.3s, ~1,900 prompt tokens |
+| Cost & Latency | 0.70 calls/question (max 1), p50 8.6s / p95 15.5s, ~1,900 prompt tokens |
 | Traceability | `sources` in every answer, built from the retrieved chunks' drug and section headers (no model calls; tested) |
 
 
@@ -418,30 +417,13 @@ RAG or Agentic Retrieval Layer
 | Out-of-Scope Rejection | Not tested | 100% (3/3) | 100% (6/6) |
 | Records in ChromaDB | 19 FDA labels | 444 FDA labels | 830 FDA labels (11,898 section chunks) |
 | Similarity Threshold | None | 0.95 L2 distance | Drug-name guard + rerank to top 8 (distance cutoff replaced) |
-| Eval Test Cases | 10 queries | 24 queries | 60 queries (7 categories) |
+| Eval Test Cases | 10 queries | 24 queries | 60 queries (7 categories + 10 follow-up) |
 | p95 Latency | ~16s (cold start) | ~5-8s (local) | 14.3s (p50 8.6s, includes Gemini call) |
 | Cost per Request | ~$0.0008 | ~$0.0004 | 0.70 Gemini calls (max 1), ~1,900 prompt + ~190 output tokens |
 | Retrieval Accuracy | N/A | N/A | 100% |
 | Correctness (judge) | N/A | N/A | 1.0 (Gemini judge, 39 answers) |
 | Faithfulness (judge) | N/A | N/A | 0.974 (Gemini judge, 39 answers) |
 
-
-
-### V2 — additional robustness testing
-
-A harder eval set (`eval_v2_hard.py`, 18 queries) was added to test paraphrased and indirectly-referenced queries, beyond the original direct-name test set:
-
-| Category | Result |
-|---|---|
-| Direct lookup / interaction / contraindication / out-of-scope | 9/9 (100%) — consistent with original eval |
-| Paraphrased drug queries (e.g. "does lisinopril mess with your kidneys?") | 100% (4/4) |
-| Indirect drug references (e.g. "my grandma's blood thinner", "blood pressure medicine") | 100% (3/3) |
-| Ambiguous, no drug name (e.g. "can I mix my two prescriptions?") | Correctly flagged for manual review, not auto-scored (2/2) |
-
-
-Indirect references initially scored 33% (1/3) due to two compounding bugs: the retrieval step only ran the LLM-based drug resolver when zero drugs were found directly (missed multi-drug queries where one drug was named and another only described), and the reranker scored chunks
-against the raw query text instead of the resolved drug name, discarding correctly-retrieved evidence. Both fixed, and confirmed by re-running all 18 queries
-(executed in slices to stay within).
 
 
 ## V3 Agentic Key Findings (updated Oct 2026)
@@ -455,7 +437,7 @@ is weak. `ROUTER_MODE=local` is the default; `ROUTER_MODE=llm` restores the earl
 chunk carries drug and section). Distance metric is L2.
 
 **Evaluation:** 60 questions, all run end to end: the original 50 (easy 14, hard 10, ambiguous 4, out-of-scope 6,
-made-up drugs 5, real drugs not in the database 5, prompt injection 6) plus a 10-question held-out set
+made-up drugs 5, real drugs not in the database 5, prompt injection 6) plus a 10-question follow-up set
 (paraphrases, brand names, a typo, indirect references, controls).
 
 | Metric | Result |
@@ -465,10 +447,10 @@ made-up drugs 5, real drugs not in the database 5, prompt injection 6) plus a 10
 | Faithfulness, Gemini judge (39 generated answers) | 0.974 |
 | Correctness, Gemini judge (39 generated answers) | 1.0 |
 | Gemini calls per question | 0.70 average, 1 max |
-| Latency (answered questions) | p50 10.1 s, p95 15.5 s |
+| Latency (answered questions) | p50 8.6 s, p95 15.5 s |
 | Tokens per answered question | ~1,900 prompt, ~200 output |
 
-**Held-out set (10 questions, written after the 50-question set was tuned):**
+**Follow-up set (10 questions written after the 50-question set was tuned, then used to fix bugs; a small sanity check, not a clean held-out test):**
 4/10 on the first retrieval-only look → 10/10 end to end. The one real code fix was brand-name and typo
 normalization (Coumadin → warfarin, Glucophage → metformin, "warfrin" → warfarin), guarded so that made-up
 drugs are never "corrected" into real ones. Five gold labels (#51, #53, #54, #59, #60) were corrected after
@@ -484,10 +466,9 @@ Indirect references ("my grandma's blood thinner") get a safe fixed refusal with
 
 **Caveats**
 * The original 50 questions were used to find and fix bugs, so they are not a held-out result. The 10
-  held-out questions are small, and their gold was corrected after review (see above).
+  follow-up questions are small, and their gold was corrected after review (see above).
 * The judge is Gemini judging Gemini, on a small sample. Treat 0.974 as a strong signal, not proof.
-* Combination products (for example amoxicillin/clavulanate) can still appear in single-drug answers
-  (#41, #60). Planned fix: match the whole drug name.
+* Combination products written as 'X and Y' or 'X/Y' (for example amoxicillin/clavulanate) are filtered out of single-drug answers (fixed, with a regression test; #41 and #60 re-run). Labels written as comma lists can still slip through.
 
 
 **Bugs found by the eval and fixed (each has a regression test):**
@@ -506,17 +487,17 @@ Indirect references ("my grandma's blood thinner") get a safe fixed refusal with
 - The system does not infer an interaction because two drug names appear together (e.g. metformin + lisinopril: both are in the corpus, but no chunk documents an interaction, so it declines). This was observed in an earlier version and is not one of the 50 eval questions.
 
 **Known limitations:**
-- The system was tuned on this eval set, so the numbers are 10 held-out questions, small.
-- The judge is Gemini grading Gemini, on a small sample (31 answers).
+- The system was tuned on the 50-question set, so its numbers are not a held-out result. The 10 follow-up questions are small and were used to fix bugs.
+- The judge is Gemini grading Gemini, on a small sample (39 answers).
 - One answer (#3, warfarin boxed warning) was judged partial: the bleeding-risk statement is not word-for-word in the retrieved text.
-- Combination-product labels (e.g. amoxicillin/clavulanate) can still appear as evidence for a single-drug question.
+- Combination-product labels written as 'X and Y' or 'X/Y' are filtered out of single-drug answers (regression test); labels written as comma lists can still appear.
 - Routing keyword lists are hand-written, so a medical word missing from them can be treated as out of scope.
 - Earlier figures (95% routing, 80% grounded, based on Gemini function-calling and a weaker metric) no longer apply.
 - Citations show which label sections were supplied as evidence, not which sentence came from where. Claim-level citations are not implemented.
 
 
 ## How grounded is measured
-`evaluation/run_eval.py` runs a 50-question set (`evaluation/eval_set.json`) in 7 categories: easy, hard, ambiguous, out-of-scope, made-up drugs, real drugs possibly not in the database, and prompt injection.
+`evaluation/run_eval.py` runs a 60-question set (`evaluation/eval_set.json`): 7 categories plus a 10-question follow-up set. The 7 categories are: easy, hard, ambiguous, out-of-scope, made-up drugs, real drugs possibly not in the database, and prompt injection.
 
 Every question is scored on four things:
 
@@ -532,13 +513,12 @@ Errors and quota failures are marked INVALID, never pass or fail. The judge scor
 The lexical check only looks at words. It cannot catch a subtly wrong claim, which is why the Gemini judge exists. Neither is a human clinical review.
 
 ## Known Limitations
-* Retrieval covers all 830 indexed FDA label records (11,898 section chunks), not a fixed list of 12 drugs. A question must name a drug that appears in a chunk's drug name, and a named drug never receives another drug's chunks. This guard matches on name, so a combination product (e.g. amoxicillin/clavulanate) can
-  still leak into a single-drug question. Planned fix: match the whole drug name.
-* "Grounded" is checked by a lexical check plus a Gemini judge on 31 answered questions. The judge is
+* Retrieval covers all 830 indexed FDA label records (11,898 section chunks), not a fixed list of 12 drugs. A question must name a drug that appears in a chunk's drug name, and a named drug never receives another drug's chunks. Combination products (e.g. amoxicillin/clavulanate) are filtered out of single-drug questions when written as 'X and Y' or 'X/Y' (regression test); comma-list labels can still slip through.
+* "Grounded" is checked by a lexical check plus a Gemini judge on 39 answered questions. The judge is
   Gemini judging Gemini, and the sample is small, so treat the scores as a strong signal, not proof.
   One answer (#3) was rated "partial" because a true bleeding-risk statement was not word-for-word in the
   boxed-warning text.
-* The eval set was used to find and fix bugs, so its scores are not a held-out result. A fresh held-out
+* The eval set was used to find and fix bugs, so its scores are not a held-out result. A larger independent
   set is planned.
 * Sessions use in-memory `MemorySaver`: history is lost on restart and not shared across instances.
 * Corpus coverage is per-drug, not per-pair. An interaction can go undocumented even when
@@ -548,13 +528,13 @@ The lexical check only looks at words. It cannot catch a subtly wrong claim, whi
   cap (default 18), so a full run with the judge can take more than one day.
 * ChromaDB collection handles can go stale after an external rebuild, requiring a server restart to re-resolve (see Engineering Challenges).
 * V3 routing is local and rule-based by default (keyword lists for scope and for the label sections a
-  question needs), at most 1 Gemini call per question (0.68 on average). The old LLM router is still
+  question needs), at most 1 Gemini call per question (0.70 on average). The old LLM router is still
   available with `ROUTER_MODE=llm`. The earlier 95% (19/20) tool-routing figure is superseded by the
   50-question eval. Because the keyword lists are hand-written, a medical word missing from them can be
   wrongly treated as out of scope (this happened with "addictive" before it was added).
 * V3 is a controlled agent: deterministic safety routing plus LLM answer generation. It has no open-ended
   agent loop and does not retry when evidence is weak.
-* Not load-tested. Latency is p50 7.2 s / p95 14.3 s for a single user, and the free Gemini quota
+* Not load-tested. Latency is p50 8.6 s / p95 15.5 s for a single user, and the free Gemini quota
   would not support many concurrent users.
 
 
@@ -580,7 +560,7 @@ The lexical check only looks at words. It cannot catch a subtly wrong claim, whi
 | Indirect drug references ("blood thinner") silently dropped when another drug was already named | Resolver only ran when zero drugs were found via substring match — multi-drug queries with one named + one described drug skipped resolution entirely | Removed the gating condition; resolver now runs on every clinical query regardless of what substring matching already found, and appends any newly-resolved drug |
 | Correctly-resolved indirect drug still missing from final answer | CrossEncoder reranked candidate chunks against the raw user query text, which never contained the resolved drug name (e.g. "blood pressure medicine" never lexically matches "lisinopril") — so retrieved lisinopril chunks lost the rerank despite being fetched correctly | Reranking query now includes resolved drug names, e.g. `"{user_msg} (lisinopril)"`, so resolved-but-unnamed drugs get proper credit during reranking |
 | Single 429 failure corrupted entire eval batches | Gemini calls failed immediately on rate-limit errors with no retry, so one quota hit mid-batch reported false negatives across the rest of the run | Added `call_gemini_with_retry()` — parses Gemini's own suggested `retryDelay` from the error and retries up to 2 times before failing; eval script timeout increased from 30s to 180s to accommodate |
-| Eval reported false 100% accuracy | Hit detection checked only the HTTP status, never whether the right drug was retrieved | Rewrote scoring to check drug, section and fact terms per question. Now 50 questions in 7 categories; errors and quota failures are INVALID, never pass or fail |
+| Eval reported false 100% accuracy | Hit detection checked only the HTTP status, never whether the right drug was retrieved | Rewrote scoring to check drug, section and fact terms per question. Now 60 questions (7 categories plus a 10-question follow-up set); errors and quota failures are INVALID, never pass or fail |
 | Session state leak | A second turn reused the first turn's evidence | Per-request state, plus a regression test |
 | Endpoints blocked the server | Async endpoints ran blocking retrieval and LLM code | Switched to plain `def` so FastAPI runs them in a threadpool |
 | Warfarin's aspirin warning was cut off | Whole-section text was truncated before embedding | Section chunking (900 chars, 150 overlap, each chunk prefixed with drug and section). 828 to 11,898 chunks (830 label records) |
@@ -590,7 +570,7 @@ The lexical check only looks at words. It cannot catch a subtly wrong claim, whi
 | "Is tramadol addictive?" got the out-of-scope reply (#42) | Routing keyword list had no "addictive" or "withdrawal" | Extended the keywords, added a routing test |
 | Prompt injection steered retrieval (#47) | Injected "any dose" text triggered the Dosage intent, so the model answered from its own knowledge | Intent detection ignores everything after "SYSTEM:", plus a regression test |
 | LLM judge scored 0.79 faithfulness | The judge saw only the first 3,500 characters of evidence | Raised to 9,000 characters and re-judged: faithfulness 0.984, correctness 1.0 (31 answers; Gemini judges Gemini) |
-| Too many Gemini calls on a 20/day quota | Old design used 2 calls per question (LLM router plus answer) | Local routing and a fixed refusal when evidence is missing. 0.68 calls per question, max 1. Eval is resumable with an 18-call daily cap. `ROUTER_MODE=llm` kept as an option |
+| Too many Gemini calls on a 20/day quota | Old design used 2 calls per question (LLM router plus answer) | Local routing and a fixed refusal when evidence is missing. 0.70 calls per question, max 1. Eval is resumable with an 18-call daily cap. `ROUTER_MODE=llm` kept as an option |
 
 
 ### 🔬 Research & Development
